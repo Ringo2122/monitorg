@@ -331,7 +331,7 @@ applyTheme(window.THEME);
   .hb.pad-compact{padding:6px 0}
   .hb.pad-wide{padding:34px 0}
   .hb[class*=" bg-"]{padding:34px 0;margin:17px 0}
-  .hb .helpband{margin-top:0}
+  .hb .helpband,.hb .help-lb{margin-top:0}
   .hb.bg-soft{background:var(--brand-l)}
   .hb.bg-dark{background:var(--navy);color:#fff}
   .hb.bg-brand{background:var(--brand);color:#fff}
@@ -530,10 +530,28 @@ applyTheme(window.THEME);
     display:grid;place-items:center;font-size:17px;font-weight:700}
   .adv .it .ic3{width:64px;height:64px;display:block;margin:-6px 0 0 -6px}
   /* плитка с переходом оранжевый → тёмно-синий логотипа (13.10, выбран вариант 10 из 10) */
-  .adv .it .icg{width:54px;height:54px;border-radius:14px;display:grid;place-items:center;
+  .icg{width:54px;height:54px;border-radius:14px;display:grid;place-items:center;flex:none;
     background:linear-gradient(135deg,#f4511e 0%,#8a2f2a 45%,#041c33 100%)}
-  .adv .it .icg svg{width:34px;height:34px;fill:none;stroke:#fff;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
-  .adv .it .icg .af{fill:rgba(255,255,255,.3)}.adv .it .icg .dot{fill:#fff;stroke:none}
+  .icg svg{width:34px;height:34px;fill:none;stroke:#fff;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+  .icg .af{fill:rgba(255,255,255,.3)}.icg .dot{fill:#fff;stroke:none}
+  .svc .icg{width:46px;height:46px;border-radius:12px} .svc .icg svg{width:29px;height:29px}
+  .adv.c2{grid-template-columns:1fr 1fr}
+  @media (min-width:1101px){ .adv.c4a{grid-template-columns:repeat(4,1fr)} }
+  /* телефон: значок слева, текст справа — карточки вдвое ниже */
+  @media (max-width:560px){ .adv .it{display:grid;grid-template-columns:46px 1fr;column-gap:13px;padding:14px}
+    .adv .it > .icg,.adv .it > .ic3,.adv .it > .ic{grid-row:span 2;width:46px;height:46px;border-radius:12px} .adv .it > .icg svg{width:29px;height:29px}
+    .adv .it h3{margin:1px 0 4px} } @media (max-width:560px){ .adv.c2{grid-template-columns:1fr} }
+  .about-h{margin:34px 0 4px}
+  .help-lb{margin-top:14px;border-radius:18px;padding:24px 28px;display:flex;align-items:center;gap:14px 20px;flex-wrap:wrap;
+    background:var(--hero);border:1px solid var(--hair)}   /* как первый экран; в тёмной теме — тёмный */
+  .help-lb h3{margin:0 0 6px;font-size:21px;color:var(--ink)} .help-lb p{margin:0;color:var(--ink-2);font-size:14.5px;max-width:560px} .help-lb .sp{flex:1}
+  .help-lb .lnk2{color:var(--brand);font-weight:700;text-decoration:none;margin-left:6px}
+  @media (max-width:560px){ .help-lb{padding:20px} .help-lb .btn{width:100%;text-align:center} .help-lb .lnk2{margin:0 auto} }
+  /* «Все возможности платформы» на главной — крупная ссылка со стрелкой в кружке, по центру (19.10) */
+  .more-lk{margin:20px 0 0;text-align:center}
+  .lk-b{display:inline-flex;align-items:center;gap:12px;color:var(--brand);font-weight:700;font-size:17px;text-decoration:none}
+  .lk-b i{width:32px;height:32px;border-radius:50%;background:var(--brand-l);display:grid;place-items:center;font-style:normal;transition:transform .15s}
+  .lk-b:hover i{transform:translateX(3px)}
   .adv .it .ic svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
   .adv .it h3{margin:11px 0 5px;font-size:15.5px}
   .adv .it p{margin:0;font-size:13.5px;color:var(--ink-2)}
@@ -2851,13 +2869,17 @@ function pageLot(id){
 
 /* ───────── помощь в аукционе ───────── */
 const SERVICES = [
-  ['check','Проверка объекта до задатка','Обременения, аресты, долги, история собственников и прошлых торгов. Чтобы не купить проблему вместе с объектом.'],
-  ['eye','Выезд на осмотр','Фото и видео, реальное состояние, сверка с описанием на площадке. Особенно выручает для объектов в районах.'],
-  ['chart','Оценка и стратегия ставок','Рыночная стоимость, предел разумной цены, сколько шагов имеет смысл делать и когда остановиться.'],
-  ['hammer','Участие в торгах под ключ','Регистрация на площадке, ЭЦП, задаток, заявка и сами торги - по доверенности, без вашего участия.'],
-  ['doc','Сопровождение после победы','Договор, оплата, регистрация права, перерегистрация транспорта, приёмка объекта.'],
-  ['search','Подбор лотов под задачу','Следим за всеми площадками и присылаем варианты под ваш бюджет, регион и цель.']
+  ['s_check','Проверка объекта до задатка','Изучим обременения, аресты, долги, историю собственников и прошлых торгов.'],
+  ['s_eye','Выезд на осмотр','Фото и видео, реальное состояние, сверка с описанием на площадке, полный отчёт по итогам.'],
+  ['s_strat','Оценка и стратегия ставок','Рыночная стоимость, предел разумной цены, сколько шагов имеет смысл делать и когда остановиться.'],
+  ['s_turnkey','Участие в торгах под ключ','Регистрация на площадке, задаток, заявка и сами торги - по доверенности, без вашего участия.'],
+  ['s_after','Сопровождение после победы','Подписание акта, оплата, регистрация права, перерегистрация транспорта или недвижимости, приёмка объекта.'],
+  ['s_pick','Подбор лотов под задачу','Следим за всеми площадками и присылаем варианты под ваш бюджет, регион и цель.'],
+  ['s_consult','Консультация','Специалист ответит на все вопросы, касающиеся торгов. Разъяснит детали для новичков и поможет тем, кто уже работал с аукционами.'],
+  ['s_full','Полное сопровождение','Всё от выбора до оформления, от вас только поставить задачу.']
 ];
+// значки услуг, сохранённые в админке до 19.10, — в новые
+const SVC_OLD = { check:'s_check', eye:'s_eye', chart:'s_strat', hammer:'s_turnkey', doc:'s_after', search:'s_pick' };
 const SICON = {
   check:'<svg viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 4.5-3.4 8.2-8 9-4.6-.8-8-4.5-8-9V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/></svg>',
   eye:'<svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>',
@@ -2877,7 +2899,7 @@ function pageHelp(params){
       <div>
         <h1>${esc(TX('help_title','Помощь в покупке на торгах'))}</h1>
         <p class="lede">${esc(TX('help_lede','На торгах можно купить заметно дешевле рынка, но цена ошибки - задаток и испорченная покупка. Берём на себя то, на чём покупатели ошибаются чаще всего.'))}</p>
-        <div class="svc">${svcList().map(([ic,t,d,p])=>`<div class="it"><span class="sico2">${SICON[ic]||SICON.check}</span>
+        <div class="svc">${svcList().map(([ic,t,d,p])=>`<div class="it">${tileIc(ic) || tileIc(SVC_OLD[ic]) || tileIc('s_check')}
           <div><h3>${esc(t)}</h3><p>${esc(d)}</p>${p?`<p class="svc-p">${esc(p)}</p>`:''}</div></div>`).join('')}</div>
         <div class="steps4">
           <div><b>1</b><span>Оставляете заявку</span></div>
@@ -2895,7 +2917,7 @@ function pageHelp(params){
           <div class="fg"><label for="h-phone">Номер телефона<span class="req" aria-hidden="true">*</span></label><input id="h-phone" type="tel" autocomplete="tel" placeholder="+375 (29) 000-00-00" value="${esc(mine('phone'))}" required aria-required="true"></div>
           <div class="fg"><label for="h-mail">Email</label><input id="h-mail" type="email" autocomplete="email" value="${esc(mine('email'))}"></div>
           <div class="fg"><label for="h-lot">Номер лота</label><input id="h-lot" value="${esc(lot)}" placeholder="например, 34950"></div>
-          <div class="fg"><label for="h-svc">Чем можем помочь</label><select id="h-svc"><option value="">Пока не знаю - нужна консультация</option>
+          <div class="fg"><label for="h-svc">Чем можем помочь</label><select id="h-svc"><option value="">Пока не знаю, что нужно</option>
             ${svcList().map(([,t])=>`<option${t===svc?' selected':''}>${esc(t)}</option>`).join('')}</select></div>
           <input class="hp" id="h-web" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
           <div class="ferr" id="h-err"></div>
@@ -2977,21 +2999,31 @@ function pageCalc(price){
   calc();
 }
 
+/* «Возможности платформы» (тексты Артёма 19.10): платформа, личный кабинет, помощь специалистов */
 const ADV = [
-  ['mkt','Сравнение с рынком','Показываем, сколько стоит такой же объект в обычной продаже: медиана похожих предложений и разброс цен. Видно, дешевле лот рынка или нет, ещё до заявки.'],
-  ['plat','Все площадки в одном месте','Собираем лоты с площадок Беларуси и сводим в один каталог: банкротство, исполнительное производство, залог, конфискат.'],
-  ['fresh','Всегда актуальная информация','Робот сам следит за площадками: новые лоты появляются в каталоге, а завершённые торги уходят в архив.'],
-  ['one','Один объект, а не пять карточек','Один и тот же объект часто выставлен сразу на нескольких площадках с разными датами. Мы их склеиваем.'],
-  ['drop','Алерт о снижении цены','На повторных торгах цена падает. Сообщаем, когда объект из вашего списка подешевел.'],
-  ['clock','Напоминания о дедлайнах','За три дня и за сутки до конца приёма заявок. Пропущенный срок - самая обидная потеря на торгах.'],
-  ['hist','История цен по объекту','Сколько раз выставлялся, по какой цене, чем закончилось. Видно, готов ли продавец уступать.'],
-  ['check','Проверка объекта','Обременения, аресты, долги, реальное состояние. До того, как вы внесли задаток.'],
-  ['cam','Выезд на осмотр','Наш человек приезжает, снимает фото и видео, отвечает на вопросы. Особенно для объектов в районах.'],
-  ['deal','Сопровождение сделки','От подачи заявки до регистрации права. Сроки, документы, оплата - под контролем.'],
-  ['stats','Аналитика рынка','Средний дисконт, доля несостоявшихся торгов, динамика по регионам и категориям.'],
-  ['bell','Уведомления в Telegram','Настраиваете фильтр один раз - новые подходящие лоты приходят сами.'],
-  ['funnel','Личная воронка','Заметки и статусы по объектам: смотрю, еду, подал заявку. Своя работа в одном месте.']
+  ['plat','Все площадки Беларуси в одном каталоге','Собираем лоты с 18 площадок: банкротство, исполнительное производство, залог и конфискат. Не нужно обходить каждый сайт - всё в одном месте и в едином виде. И главное - бесплатно.'],
+  ['fresh','Всегда актуальная информация','Робот проверяет площадки несколько раз в день: новые лоты сразу появляются в каталоге, изменения цен и сроков подтягиваются автоматически, завершённые торги уходят в архив.'],
+  ['arch','Архив завершённых торгов с итогами','По каждому лоту видно, чем закончились торги: продан, продан единственному участнику, не состоялись или отменены, и за сколько ушёл объект. Храним лоты даже после того, как площадка удалила их у себя.'],
+  ['search','Умный поиск','Ищите по названию, адресу, марке и модели, VIN, кадастровому или инвентарному номеру. Поиск понимает разные формы слов, а фильтры помогут сузить выбор по региону, городу, цене, датам и площадке.'],
+  ['hist','История объекта','Сколько раз объект выставлялся на торги, по какой цене и чем всё закончилось. Сразу видно, снижает ли продавец цену и стоит ли ждать следующего круга.'],
+  ['mkt','Сравнение с рынком (бета)','Показываем, сколько похожий объект стоит в обычной продаже, и насколько лот на торгах дешевле. Ориентир есть у лотов, для которых нашлось достаточно похожих предложений.'],
+  ['calc','Калькулятор итоговой цены','Считает, во сколько реально обойдётся покупка: цена после нужного числа ставок с учётом шага торгов, сбор оператора площадки по её тарифам и НДС, если он добавляется к цене.'],
+  ['rent','Калькулятор аренды по базовой арендной величине','Для лотов на право аренды переводим ставку из извещения в рубли по действующей базовой арендной величине, учитываем коэффициенты спроса и местонахождения.']
 ];
+const ADV_LK = [
+  ['watch','Слежение за изменениями','Добавьте лот в избранное, и мы сообщим в личном кабинете, если изменится цена, перенесут срок приёма заявок или дату торгов, а также когда появится итог торгов.'],
+  ['drop','Сигнал о снижении цены','На повторных торгах цена часто падает. Как только объект из вашего списка подешевеет, вы увидите это в личном кабинете. А если лот сняли, можно попросить сообщить, когда его выставят снова.'],
+  ['cal','Личный календарь ваших торгов','Все сроки приёма заявок и даты торгов по вашим лотам в одном календаре. Плюс напоминания за 3 дня и за сутки до конца приёма заявок. Календарь можно выгрузить в телефон в один клик.'],
+  ['stats','Аналитика рынка','Цены, скидки к рынку, итоги торгов по месяцам и шанс продажи по стартовой цене. Помогает понять, сколько на самом деле отдают за такие объекты.'],
+  ['platan','Анализ площадок для управляющих и ликвидаторов','Выбирайте для работы площадки, которые реально продают. Посмотрите в аналитике, кто лучше всего продаёт нужную категорию в регионе.'],
+  ['notes','Заметки и этапы по каждому лоту','Делайте свои заметки по объекту, их видите только вы. Отмечайте этап: изучаю, осмотр, готовлю заявку, участвую, выиграл, отказался. Все ваши торги под контролем.']
+];
+const ADV_HELP = [
+  ['assist','Сопровождение на аукционе','Если торги в новинку или хотите, чтобы их провели за вас - оставьте заявку. Специалист МониТорга поможет на любом шаге: проверит объект, поможет со стратегией и проведёт через аукцион.'],
+  ['report','Отчёты по объекту в личном кабинете','Закажите проверку объекта, и готовый отчёт придёт прямо в личный кабинет или на почту. Там же он и будет храниться, вместе с файлами.']
+];
+// «Почему МониТорг» на главной — 5 пунктов из возможностей и один общий про оба калькулятора (на «О платформе» их два)
+const HOME_ADV = [0,1,2,3,4].map(i=>ADV[i]).concat([['calc','Калькуляторы покупки и аренды','Считают, во сколько реально обойдётся покупка: ставки с учётом шага торгов, сбор площадки и НДС. А для права аренды - платёж в месяц по действующей базовой арендной величине.']]);
 
 /* значки «Возможности платформы» — линиями, как у разделов (05.10: были эмодзи и символы); «Почему МониТорг» на главной —
    3D-значки img/why1–6.png (Microsoft Fluent Emoji 3D, лицензия MIT — app/img/LICENSE-fluentui-emoji.txt), по порядку пунктов */
@@ -3010,7 +3042,7 @@ const ADV_IC = {
   bell:'<path d="M6 8a6 6 0 1 1 12 0c0 7 3 8 3 8H3s3-1 3-8M10 20a2 2 0 0 0 4 0"/>',
   funnel:'<path d="M3 6h7l2 2h9v11H3z"/>'
 };
-const advIc = k => ADV_IC[k] ? `<svg viewBox="0 0 24 24">${ADV_IC[k]}</svg>` : esc(k);
+const advIc = k => ADV_IC[k] ? `<svg viewBox="0 0 24 24">${ADV_IC[k]}</svg>` : WHY_IC[k] ? `<svg viewBox="0 0 32 32">${WHY_IC[k]}</svg>` : esc(k);
 // «Почему МониТорг»: значки для плитки с переходом цвета (сетка 32), .af — полупрозрачная заливка, .dot — точка
 const WHY_IC = {
   mkt:'<path d="M16 5v21M10 27h12M6 9h20M6 9l-3.5 8M6 9l3.5 8M26 9l-3.5 8M26 9l3.5 8M2.5 17a3.5 3.5 0 0 0 7 0z"/><circle class="dot" cx="16" cy="5" r="1.6"/><path class="af" d="M22.5 17a3.5 3.5 0 0 0 7 0z"/>',
@@ -3018,8 +3050,30 @@ const WHY_IC = {
   fresh:'<path d="M26 16a10 10 0 0 1-17.6 6.5M6 16A10 10 0 0 1 23.6 9.5M24 4v6h-6M8 28v-6h6"/><circle class="dot" cx="16" cy="16" r="2.6"/>',
   one:'<path d="M5 21V8a3 3 0 0 1 3-3h13"/><path d="M9 25V12a3 3 0 0 1 3-3h13" opacity=".55"/><rect class="af" x="13" y="13" width="15" height="15" rx="3"/><path d="M17 20.5l2.5 2.5 4.5-5"/>',
   drop:'<path d="M4 4v24h24M8 9l6 6 4-4 8 8M26 13v6h-6"/>',
-  clock:'<circle cx="16" cy="17" r="10"/><path d="M16 11v6l4 3M9.5 25l-2 3M22.5 25l2 3"/><path class="af" d="M3.5 9.5a4.5 4.5 0 0 1 6-6zM28.5 9.5a4.5 4.5 0 0 0-6-6z"/>'
+  clock:'<circle cx="16" cy="17" r="10"/><path d="M16 11v6l4 3M9.5 25l-2 3M22.5 25l2 3"/><path class="af" d="M3.5 9.5a4.5 4.5 0 0 1 6-6zM28.5 9.5a4.5 4.5 0 0 0-6-6z"/>',
+  // 19.10: новые «Возможности платформы», «Личный кабинет», помощь и услуги — в том же стиле
+  arch:'<rect class="af" x="4" y="5" width="24" height="7" rx="1.5"/><path d="M6 12v13a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V12M13 17h6"/>',
+  search:'<circle class="af" cx="14" cy="14" r="9"/><path d="M20.5 20.5L28 28M9.5 14a4.5 4.5 0 0 1 4.5-4.5"/>',
+  hist:'<path d="M5.5 16A10.5 10.5 0 1 0 9 8.2M5 3.5v5.5h5.5"/><path d="M16 10v6l4 3"/><circle class="dot" cx="16" cy="16" r="1.9"/>',
+  calc:'<rect class="af" x="7" y="3" width="18" height="26" rx="3"/><rect x="11" y="7" width="10" height="5" rx="1"/><circle class="dot" cx="12" cy="17.5" r="1.5"/><circle class="dot" cx="16" cy="17.5" r="1.5"/><circle class="dot" cx="20" cy="17.5" r="1.5"/><circle class="dot" cx="12" cy="22.5" r="1.5"/><circle class="dot" cx="16" cy="22.5" r="1.5"/><circle class="dot" cx="20" cy="22.5" r="1.5"/>',
+  rent:'<path class="af" d="M4 28V10l9-6 9 6v4"/><path d="M4 28h11M9 14h3M9 19h3M9 24h3"/><circle cx="22" cy="21" r="4.5"/><path d="M25.2 24.2L29 28M26.8 25.8l1.6-1.6"/>',
+  watch:'<path d="M3 16s5-9 13-9 13 9 13 9-5 9-13 9S3 16 3 16z"/><circle class="af" cx="16" cy="16" r="5"/><circle class="dot" cx="16" cy="16" r="2"/>',
+  cal:'<rect x="4" y="6" width="24" height="22" rx="3"/><path class="af" d="M4 13h24V9a3 3 0 0 0-3-3H7a3 3 0 0 0-3 3z"/><path d="M10 3v6M22 3v6"/><circle class="dot" cx="11" cy="18.5" r="1.6"/><circle class="dot" cx="16" cy="18.5" r="1.6"/><circle class="dot" cx="21" cy="18.5" r="1.6"/><circle class="dot" cx="11" cy="23.5" r="1.6"/><circle class="dot" cx="16" cy="23.5" r="1.6"/>',
+  stats:'<path d="M4 28h24"/><rect class="af" x="6" y="16" width="5" height="12" rx="1"/><rect x="13.5" y="10" width="5" height="18" rx="1"/><rect class="af" x="21" y="4" width="5" height="24" rx="1"/>',
+  platan:'<path d="M3 28h26"/><rect class="af" x="12" y="12" width="8" height="16"/><path d="M4 28V18h8M20 28V15h8v13"/><path d="M16 3.5l1.3 2.6 2.9.4-2.1 2 .5 2.8L16 10l-2.6 1.3.5-2.8-2.1-2 2.9-.4z"/>',
+  notes:'<path class="af" d="M7 4h13l5 5v19H7z"/><path d="M20 4v5h5M11 15h10M11 20h10M11 25h6"/>',
+  assist:'<circle cx="16" cy="16" r="12"/><path class="af" d="M21.5 10.5l-3.2 7.8-7.8 3.2 3.2-7.8z"/><circle class="dot" cx="16" cy="16" r="1.7"/><path d="M16 4v2.5M16 25.5V28M4 16h2.5M25.5 16H28"/>',   // компас (19.10)
+  report:'<path class="af" d="M8 3h11l6 6v20H8z"/><path d="M19 3v6h6M12 15h9M12 20h9M12 25h5"/>',
+  s_check:'<path class="af" d="M16 3l11 4v8c0 7-4.8 12-11 14C9.8 27 5 22 5 15V7z"/><path d="M11 16l3.5 3.5L21 13"/>',
+  s_eye:'<path d="M4 10h5l2.5-4h9L23 10h5v17H4z"/><circle class="af" cx="16" cy="18" r="5.5"/><circle class="dot" cx="24.5" cy="13.5" r="1.4"/>',
+  s_strat:'<circle cx="16" cy="16" r="12"/><circle class="af" cx="16" cy="16" r="7.5"/><circle class="dot" cx="16" cy="16" r="2.6"/><path d="M16 16l9-9M22 7h3V4M25 7v-3"/>',
+  s_turnkey:'<circle class="af" cx="10" cy="16" r="6.5"/><circle class="dot" cx="10" cy="16" r="2"/><path d="M16.5 16H29M24 16v5M28 16v4"/>',
+  s_after:'<path class="af" d="M7 3h13l5 5v21H7z"/><path d="M20 3v5h5M11 13h9M11 18h6M11 25c2-3.5 3 1 5-1.5s2.5 1 4.5-1"/>',
+  s_pick:'<path d="M4 7h11M4 13h8M4 19h6"/><circle class="af" cx="20" cy="18" r="6.5"/><path d="M24.8 22.8L29 27"/>',
+  s_consult:'<path class="af" d="M3 5h17v12h-9l-5 4.5V17H3z"/><path d="M23 10h6v11h-2.5v4l-4.5-4h-7v-1.5"/>',
+  s_full:'<circle cx="7" cy="25" r="3"/><path d="M10 25h8.5a4 4 0 0 0 0-8h-6a4 4 0 0 1 0-8h7"/><path class="af" d="M22 3v10M22 4h7l-2 3 2 3h-7"/>'
 };
+const tileIc = k => WHY_IC[k] ? `<span class="icg"><svg viewBox="0 0 32 32">${WHY_IC[k]}</svg></span>` : '';
 /* «Как это работает» на главной — тексты можно поменять в админке (texts.how) */
 const HOW = [['Находите лот','Все площадки в одном каталоге с фильтрами по региону, цене и сроку заявок.'],
   ['Сравниваете с рынком','У части лотов рядом с ценой показана медиана похожих объявлений.'],
@@ -3035,11 +3089,11 @@ function howList(){
 function advFail(img){ const d = document.createElement('div'); d.className = 'ic'; d.innerHTML = advIc(img.dataset.ic); img.replaceWith(d); }
 function advList(){
   const a = ((CFG.texts||{}).adv||[]).filter(x=>x && x.t);
-  return a.length ? a.map((x,i)=>[(ADV[i]||['•'])[0], x.t, x.d||'']) : ADV.slice(0,6);
+  return a.length ? a.map((x,i)=>[(HOME_ADV[i]||['•'])[0], x.t, x.d||'']) : HOME_ADV;
 }
 function svcList(){
   const a = ((CFG.texts||{}).services||[]).filter(x=>x && x.t);
-  return a.length ? a.map((x,i)=>[x.i && SICON[x.i] ? x.i : (SERVICES[i]||SERVICES[0])[0], x.t, x.d||'', x.p||'']) : SERVICES;
+  return a.length ? a.map((x,i)=>[x.i && (WHY_IC[x.i] || SVC_OLD[x.i]) ? x.i : (SERVICES[i]||SERVICES[0])[0], x.t, x.d||'', x.p||'']) : SERVICES;
 }
 
 /* политика конфиденциальности — текст из админки (texts.privacy_text), пока его нет — заглушка; абзацы — через пустую строку */
@@ -3165,13 +3219,23 @@ function ckShow(){
   $('#ck-set').onclick = e => { e.preventDefault(); ckShow(); };
 })();
 
+// плашка «Нужна помощь с торгами?» — на главной и на «О платформе»; текст правится в админке (band_title, band_text)
+const BAND_T = 'Нужна помощь с торгами?', BAND_D = 'Оставьте заявку - специалист перезвонит, ответит на вопросы и предложит, чем помочь.';
+const helpLb = () => `<div class="help-lb"><div><h3>${esc(TX('band_title', BAND_T))}</h3><p>${esc(TX('band_text', BAND_D))}</p></div>
+  <span class="sp"></span><a class="btn pri big" href="#/help">Оставить заявку</a><a class="lnk2" href="#/help">Все услуги →</a></div>`;
 function pageAbout(){
   document.title = 'О платформе' + TSUF;
+  const grid = (list, c) => `<div class="adv${c ? ' ' + c : ''}">${list.map(([ic,t,d])=>`<div class="it">${tileIc(ic)}<h3>${esc(t)}</h3><p>${esc(d)}</p></div>`).join('')}</div>`;
   $('#app').innerHTML = `<div class="wrap">
     ${crumbs([['О платформе']])}
     <h1>Возможности платформы</h1>
-    <p class="lede">МониТорг собирает торги по имуществу должников со всех площадок Беларуси, приводит их к одному виду и помогает довести покупку до сделки.</p>
-    <div class="adv">${ADV.map(([ic,t,d])=>`<div class="it"><div class="ic">${advIc(ic)}</div><h3>${esc(t)}</h3><p>${esc(d)}</p></div>`).join('')}</div>
+    ${grid(ADV, 'c4a')}
+    <h2 class="about-h">Личный кабинет</h2>
+    <p class="lede">Бесплатно после регистрации по почте.</p>
+    ${grid(ADV_LK)}
+    <h2 class="about-h">Помощь специалистов</h2>
+    ${grid(ADV_HELP, 'c2')}
+    ${helpLb()}
     </div>`;
 }
 
@@ -3387,8 +3451,9 @@ function lotsHtml(b, list, def, sub, all){
 const HB = {
   tiles: b => head2(b, 'Что продаётся на торгах', '<a href="#/catalog">Весь каталог →</a>') + sectionTiles(b.imgs),
   how: b => head2(b, 'Как это работает') + `<div class="how">${howList().map(([t,d],i)=>`<div><span class="hn">${i+1}</span><h3>${esc(t)}</h3><p>${esc(d)}</p></div>`).join('')}</div>`,
-  band: b => `<div class="helpband st-${esc(b.style || 'dark')}"><div><h2>${esc(TX('band_title','Первый раз на торгах?'))}</h2>
-      <p>${esc(TX('band_text','Проверим объект до задатка, съездим на осмотр, подскажем разумный предел цены и проведём через аукцион.'))}</p></div>
+  // плашка заявки: по умолчанию — светлая, как на «О платформе» (19.10); тёмная и фирменная — по выбору в админке
+  band: b => !b.style || b.style === 'light' ? helpLb() : `<div class="helpband st-${esc(b.style)}"><div><h2>${esc(TX('band_title', BAND_T))}</h2>
+      <p>${esc(TX('band_text', BAND_D))}</p></div>
       <a class="btn pri big" href="#/help">Оставить заявку</a></div>`,
   pins: b => lotsHtml(b, DATA.filter(l=>l.pin).sort((a,c)=>a.req_to-c.req_to), 'Рекомендуем', 'Лоты, отобранные специалистами МониТорга', '#/catalog?view=pin'),
   soon: b => lotsHtml(b, DATA.filter(isSoon).sort((a,c)=>a.req_to-c.req_to), 'Истекающие торги', 'Приём заявок закрывается в ближайшие 3 дня', '#/catalog?view=soon'),
@@ -3397,7 +3462,7 @@ const HB = {
       return `<div class="it">${b.icons === 'line' && !own ? `<div class="ic">${advIc(ic)}</div>`
         : b.icons !== '3d' && !own && WHY_IC[ic] ? `<div class="icg"><svg viewBox="0 0 32 32">${WHY_IC[ic]}</svg></div>`
         : `<img class="ic3" src="${esc(own || `img/why${i+1}.png`)}" width="64" height="64" alt="" loading="lazy" data-ic="${esc(ic)}" onerror="advFail(this)">`}<h3>${esc(t)}</h3><p>${esc(d)}</p></div>`; }).join('')}</div>
-      <p style="margin-top:14px"><a href="#/about">Все возможности платформы →</a></p>`,
+      <p class="more-lk"><a class="lk-b" href="#/about">Все возможности платформы <i>→</i></a></p>`,
   cal: b => `<div class="sec-h"><h2>${esc(b.title || 'Календарь торгов')}</h2></div>
       <p class="lede" style="margin:-4px 0 12px">${esc(b.sub || 'Торги всех площадок по датам. Нажмите на день - откроется список лотов.')}</p><div class="cal" id="cal"></div>`,
   news: b => { const n = newsList().slice(0, +b.count || 3); return n.length ? head2(b, 'Новости', '<a href="#/news">Все новости →</a>') + `<div class="news">${n.map(newsCard).join('')}</div>` : ''; },
@@ -4196,7 +4261,7 @@ async function meOrderForm(M, params){
   M.innerHTML = `<p><a href="#/me/orders">← Заявки на помощь</a></p><h1>Новая заявка</h1>
     <p class="lede">Опишите задачу - специалист свяжется с вами, уточнит детали и согласует объём и стоимость. Заявка и её статус - в разделе «Заявки на помощь».</p>
     <form class="panel me-p oform" id="of" novalidate>
-      <div class="fg"><label for="o-svc">Услуга</label><select id="o-svc"><option value="">Консультация - пока не знаю, что нужно</option>
+      <div class="fg"><label for="o-svc">Услуга</label><select id="o-svc"><option value="">Пока не знаю, что нужно</option>
         ${svcList().map(([,t])=>`<option${t===svc?' selected':''}>${esc(t)}</option>`).join('')}</select></div>
       <div class="fg"><label for="o-lot">Лот</label><select id="o-lot"><option value="">Без привязки к лоту</option>
         ${opts.map(k=>`<option value="${esc(k)}"${k===pre?' selected':''}>${esc(lots[k].name.slice(0,90))}${lots[k].status==='archive'?' - архив':''}</option>`).join('')}
