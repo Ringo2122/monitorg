@@ -1471,6 +1471,15 @@ async function pAccess(){
         <li>Permissions → Actions → <b>Read and write</b>. Generate token, скопируйте ключ.</li></ol>
       <div class="bar"><input type="password" id="ghk" placeholder="github_pat_…" style="flex:1"><button class="btn pri" id="ghgo">Сохранить ключ</button>${STATS.github?'<button class="btn bad" id="ghdel">Удалить ключ</button>':''}</div>
       <p class="muted">Ключ хранится в зашифрованном хранилище базы и нигде не показывается.</p></div>
+    <div class="panel"><h2>Заявки в Telegram</h2>
+      <p style="margin-top:0">Новая заявка на помощь сразу приходит сообщением в Telegram: имя, телефон, услуга, лот и комментарий. <span id="tgst" class="muted">Проверяю…</span></p>
+      <ol class="muted"><li>Токен бота: в Telegram откройте <b>@BotFather</b> → ваш бот (можно тот, что присылает сигналы о сбоях) → API Token, скопируйте.</li>
+        <li>Номер чата: напишите боту <b>@userinfobot</b> - он ответит вашим Id (число). Для группы - добавьте в неё бота, номер группы начинается с минуса.</li>
+        <li>Обязательно напишите своему боту любое сообщение (или добавьте его в группу) - иначе Telegram не даст ему писать вам первым.</li></ol>
+      <div class="grid2"><label class="fld"><span>Токен бота</span><input type="password" id="tgk" placeholder="123456789:AA…" autocomplete="off"></label>
+        <label class="fld"><span>Номер чата</span><input id="tgc" placeholder="например, 123456789"></label></div>
+      <div class="bar"><button class="btn pri" id="tggo">Сохранить</button><button class="btn" id="tgtest">Отправить проверку</button><button class="btn bad" id="tgdel">Отключить</button></div>
+      <p class="muted">Токен хранится в зашифрованном хранилище базы и нигде не показывается. Чтобы сменить только номер чата, оставьте поле токена пустым.</p></div>
     <div class="panel"><h2>Сеансы</h2><p style="margin-top:0">Вход действует 30 дней на каждом устройстве.</p>
       <button class="btn" id="lo1">Выйти</button> <button class="btn bad" id="loa">Выйти на всех устройствах</button></div>`;
   $('#pwgo').onclick = async ()=>{
@@ -1481,6 +1490,19 @@ async function pAccess(){
   $('#ghgo').onclick = async ()=>{ const v = $('#ghk').value.trim(); if(!v){ toast('Вставьте ключ', true); return; }
     try{ await rpc('set_github_token', { p_token:v }); $('#ghk').value = ''; toast('Ключ сохранён'); await refreshStats(); pAccess(); }catch(err){ toast(err.message, true); } };
   if($('#ghdel')) $('#ghdel').onclick = async ()=>{ try{ await rpc('set_github_token', { p_token:'' }); toast('Ключ удалён'); await refreshStats(); pAccess(); }catch(err){ toast(err.message, true); } };
+  // заявки в Telegram (supabase/lead-telegram-2026-10-19.sql)
+  const tgDraw = async ()=>{ try{ const st = await rpc('tg_leads_status');
+      $('#tgst').innerHTML = st.token && st.chat ? '<span class="okc">Включено.</span>' : 'Не настроено.';
+      if(st.chat) $('#tgc').value = st.chat; }catch(err){ $('#tgst').textContent = err.message; } };
+  tgDraw();
+  $('#tggo').onclick = async ()=>{ const k = $('#tgk').value.trim(), c = $('#tgc').value.trim();
+    if(!c){ toast('Укажите номер чата', true); return; }
+    if(k && !/^\d+:[\w-]{20,}$/.test(k)){ toast('Не похоже на токен бота: он вида 123456789:AA…', true); return; }
+    try{ const ok = await rpc('set_tg_leads', { p_token:k || null, p_chat:c }); $('#tgk').value = '';
+      toast(ok ? 'Сохранено - нажмите «Отправить проверку»' : 'Номер чата сохранён, но токена бота ещё нет', !ok); tgDraw(); }catch(err){ toast(err.message, true); } };
+  $('#tgtest').onclick = async ()=>{ try{ const ok = await rpc('tg_leads_test');
+      toast(ok ? 'Отправлено - проверьте Telegram. Не пришло за минуту - проверьте токен, номер чата и что вы написали боту' : 'Сначала сохраните токен и номер чата', !ok); }catch(err){ toast(err.message, true); } };
+  $('#tgdel').onclick = async ()=>{ try{ await rpc('set_tg_leads', { p_token:null, p_chat:'' }); $('#tgc').value = ''; toast('Отключено'); tgDraw(); }catch(err){ toast(err.message, true); } };
   $('#lo1').onclick = ()=>logout();
   $('#loa').onclick = async ()=>{ try{ await rpc('admin_logout', { p_all:true }); }catch(e){} logout(true); };
 }
