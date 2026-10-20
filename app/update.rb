@@ -434,6 +434,35 @@ unless RESULTS_ONLY || YEAR_ARCH
   Bav.run(bav_mg)
 end
 
+# ── konfiskat: время торгов — с torgikonfiskat.by, где они идут (20.10, Артём) ──
+# Раз на лот: транспорт — по ссылке со страницы konfiskat (номер лота должен совпасть, иначе ссылка чужая),
+# недвижимость — по названию в каталоге торгов недвижимости. Ручная правка в админке всё равно главнее (build.rb).
+unless RESULTS_ONLY || YEAR_ARCH
+  kf = db.values.select { |l| l['platform'] == 'konfiskat.by' && l['status'] == 'active' && !l['tk_chk'] }
+  re_cat = nil
+  norm = ->(s) { s.to_s.downcase.gsub(/[^а-яёa-z0-9]/, '')[0, 80] }
+  kf.each do |l|
+    if l['section'] == 'nedvizhimost'
+      re_cat ||= Src.tk_re_list or break
+      m = re_cat.find { |c| norm.(c['name']) == norm.(l['name']) }
+      l['tk'] = m && m['url']
+      t = m && m['torg']
+    else
+      html = l['tk'] && Src.get(l['tk'])
+      next unless html                                   # не открылась — попробуем в следующий прогон
+      (l.delete('tk'); l['tk_chk'] = now; next) if Src.tk_lot(html) && Src.tk_lot(html) != l['art'].to_s
+      t = Src.tk_start(html)
+    end
+    l['tk_chk'] = now
+    next unless t && t > now && t != l['torg']
+    STDERR.puts "konfiskat #{l['key']}: время торгов #{Time.at(l['torg'].to_i).strftime('%d.%m %H:%M')} → #{Time.at(t).strftime('%d.%m %H:%M')}"
+    l['torg'] = t
+    secs = Store.details(l['key'])
+    secs.each { |sx| (sx['rows'] || []).each { |r| r[1] = Time.at(t).strftime('%d.%m.%Y %H:%M') if r[0] == 'Дата аукциона' } }
+    Store.save_details(l['key'], secs)
+  end
+end
+
 # ── belauction: лот пропал с первых страниц активных аукционов — смотрим его страницу ──
 # Списки у belauction читаем только первыми страницами (robots.txt), поэтому пропажа из них — не снятие. Но торги там
 # закрывают и раньше объявленного: у лота 194724 (трактор «Беларус 82.1») 26.09 стояло «Завершение торгов: 09 октября»,

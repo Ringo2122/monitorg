@@ -413,6 +413,26 @@ module Src
     t
   end
   # ---------------- torgikonfiskat.by — торги konfiskat.by ----------------
+  # Начало торгов — таймер страницы лота или карточки каталога: data-datetime (секунды). 20.10 (Артём): часть извещений
+  # konfiskat печатает только в газете «Звезда» — тогда у konfiskat.by одна дата, а время и было «по правилу»
+  def tk_start(html)
+    html.to_s[/class="timer"[^>]*data-datetime="(\d{9,})"/, 1]&.to_i
+  end
+
+  def tk_lot(html)
+    html.to_s[/Лот №:\s*<span>(\d+)/, 1]
+  end
+
+  # Идущие торги недвижимости (каталог — одна страница): у konfiskat.by ссылки на них нет, ищем по названию
+  def tk_re_list
+    html = get("#{TK}/real-estate-auction/") or return nil
+    html.split('class="product-card mini-card"').drop(1).map do |ch|
+      id = ch[%r{href="/real-estate-auction/(\d+)/"}, 1] or next
+      { 'url' => "#{TK}/real-estate-auction/#{id}/", 'name' => txt(ch[/class="product-title"\s*>(.*?)<\/a>/m, 1]),
+        'torg' => ch[/data-datetime="(\d{9,})"/, 1]&.to_i }
+    end.compact
+  end
+
   # Аукционы konfiskat.by проходят на torgikonfiskat.by. Для архива берём оттуда каталог автотранспорта
   # с фильтром статуса: «Завершены» (80|81) — последние дни, «Архив» — всё прошлое. По дате аукциона
   # от поздних к ранним, по 8 на странице. «Лот №» на странице торгов — тот же номер, что у лота на konfiskat.by.

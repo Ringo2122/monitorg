@@ -122,6 +122,10 @@ nplat = lots.map { |l| l['platform'] }.uniq.size
 web = ->(u) { u.is_a?(String) && u =~ %r{\Ahttps?://}i ? u : nil }
 lots.each do |l|
   l['url'] = web.(l['url'])
+  # konfiskat.by — витрина, торги идут на torgikonfiskat.by: «На площадке» ведёт туда, если ссылка известна (20.10, Артём)
+  # у недвижимости старая ссылка бывала чужой (20.10: цех в Новогрудке вёл на долю дома в Червене) — берём только
+  # проверенную роботом по каталогу торгов (tk_chk, update.rb)
+  l['url'] = web.(l['tk']) || l['url'] if l['platform'] == 'konfiskat.by' && l['tk'] && (l['section'] != 'nedvizhimost' || l['tk_chk'])
   l['phx'] = web.(l['phx']) if l['phx']
   l['pics'] = l['pics'].select { |u| web.(u) } if l['pics'].is_a?(Array)
   l['market'] = l['market'].merge('link' => web.(l['market']['link'])) if l['market'].is_a?(Hash) && l['market']['link']
