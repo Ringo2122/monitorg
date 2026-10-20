@@ -35,6 +35,7 @@ require_relative 'cats'
 require_relative 'area'
 require_relative 'statsfile'
 require_relative 'vat'
+require_relative 'chance'
 
 OUT  = ENV['OUT'] || File.join(Store::ROOT, '_site')
 TMP  = File.join(Store::ROOT, 'tmp')
@@ -45,7 +46,7 @@ PACKS = 1000
 # свежий архив — arch.js (календарь на главной, недавние лоты), старше — arch2.js
 ARCH_NEW = 45
 KEEP = %w[id art name price req_to torg url location region city debtor area_num platform section off
-          photo pk market prices status closed why first_seen alt pin result phx land sub].freeze
+          photo pk market prices status closed why first_seen alt pin result phx land sub chance].freeze
 SECS = %w[nedvizhimost avto gruz spec oborud arenda].freeze
 
 # Персональные данные: MASK=1 скрывает ФИО должников-физлиц и контактных лиц по осмотру.
@@ -155,6 +156,7 @@ lots.each do |l|
     l.delete('market') unless r >= 0.30 && r <= 3.0 && m['n'].to_i >= 3   # 15.10: дисконт больше 70% — не показываем (было 85%)
   end
 end
+Chance.apply(lots, now)   # шанс, что торги состоятся (бета)
 
 # копия для админки — значения площадки, до правок человека
 MIRROR = %w[key id art platform section name price req_to torg location region url area_num debtor].freeze

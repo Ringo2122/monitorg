@@ -449,6 +449,16 @@ applyTheme(window.THEME);
   .mkt .warn{font-size:12px;color:var(--ink-3);margin-top:10px;line-height:1.5}
   .mkt .mft{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-top:8px;font-size:12px;font-weight:600}
   .mkt .mft a,.mkt .mft .beta{color:var(--brand-d)}
+  .cmb-h{display:flex;gap:8px;align-items:baseline}
+  .cmb-h .beta{font-size:11px;font-weight:600;color:var(--brand-d)}
+  .cmb-l{font-size:12px;color:var(--ink-3)}
+  .cmb-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:10px}
+  .cmb-t{background:var(--bg-2,rgba(0,0,0,.03));border-radius:10px;padding:11px 12px}
+  .cmb-n{font-size:22px;font-weight:700;letter-spacing:-.02em;margin-top:3px;font-variant-numeric:tabular-nums}
+  .cmb-n small{font-size:13px;font-weight:600}
+  .cmb-w{font-size:18px}
+  .cmb-d{font-size:12px;color:var(--ink-2);margin-top:2px}
+  .cmb-d.ok{color:#1a8a4a}
   .lot .body{padding:12px 13px;display:flex;flex-direction:column;gap:7px;flex:1}
   .lot .nm{font-weight:700;font-size:14.5px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;
     -webkit-box-orient:vertical;overflow:hidden}
@@ -2249,6 +2259,23 @@ function pageCatalog(sc, params){
   if(keep && keep.open){ $('#fp').classList.add('open'); $('#ov').classList.add('open'); }
 }
 
+// «Оценка МониТорга» (бета): рыночный ориентир и шанс, что торги состоятся, — одним блоком
+function comboBlock(l){
+  const m = l.market, c = l.chance, dc = m ? discount(l) : 0;
+  const beta = `<span class="beta" title="Расчёт по объявлениям и истории торгов, работает в тестовом режиме">бета</span>`;
+  return `<div class="mkt cmb">
+    <div class="hd cmb-h">Оценка МониТорга ${beta}</div>
+    <div class="cmb-tiles">
+      ${m?`<div class="cmb-t"><div class="cmb-l">Рыночный ориентир</div><div class="cmb-n">${nf(m.median)} <small>BYN</small></div>
+        <div class="cmb-d ${dc>=0?'ok':''}">${dc>=0?`лот на ${dc}% дешевле`:`лот на ${-dc}% дороже`}</div></div>`:''}
+      ${c?`<div class="cmb-t"><div class="cmb-l">Шанс, что торги состоятся</div><div class="cmb-n">${c[0]>50?'<span class="cmb-w">Выше среднего</span>':c[0]+'%'}</div>
+        <div class="cmb-d">Оценка исходя из похожих лотов, проданных за год</div></div>`:''}
+    </div>
+    ${m?`<div class="sub" style="margin-top:10px">Ориентир - медиана ${m.n} похожих предложений на ${esc(m.source)}. Состояние объекта не учитывается.</div>
+    <div class="mft"><a href="${esc(m.link)}" target="_blank" rel="noopener">Похожие предложения ↗</a></div>`:''}
+  </div>`;
+}
+
 function marketBlock(l){
   const m = l.market;
   const dc = discount(l);
@@ -2269,7 +2296,7 @@ function marketBlock(l){
       на рынке <b>${nf(m.sqm)} BYN/м²</b> по ${m.sqm_n} объявлениям с указанной площадью.</div>`:''}
     <div class="warn">Состояние объекта не учитывается. На торгах имущество часто требует ремонта, а для сравнения взяты обычные объявления.
       </div>
-    <div class="mft"><a href="${esc(m.link)}" target="_blank" rel="noopener">Посмотреть похожие предложения ↗</a><span class="beta" title="Подбор похожих объявлений работает в тестовом режиме">Тестовая функция</span></div>
+    <div class="mft"><a href="${esc(m.link)}" target="_blank" rel="noopener">Посмотреть похожие предложения ↗</a><span class="beta" title="Подбор похожих объявлений работает в тестовом режиме">бета</span></div>
   </div>`;
 }
 
@@ -2598,7 +2625,6 @@ function simBlock(l, c){
     <div class="xl sim-l">${c.items.map(a=>`<div class="xr"><div class="xn">${aucLink(a)}<span>${dt(a.d)} · ${esc(a.p)}${a.y ? ` · ${a.y} г. в.` : ''}${a.a ? ` · ${nf(a.a)} м²` : ''}${usTxt(a.us)}</span></div>
       <div class="xv">${a.s > 0 ? `<span class="mut">начальная ${nf(a.s)} BYN</span>` : ''}${aucRes(a)}</div></div>`).join('')}</div>
     ${c.items.length > 1 ? `<button type="button" class="btn sim-more${c.items.length <= 3 ? ' m1' : ''}" data-n="${c.items.length}">Показать все (${c.items.length})</button>` : ''}
-    <p class="note">${c.sold < 3 ? 'Продаж пока мало - ориентир грубый. ' : ''}Сравниваем ${veh ? 'ту же марку и модель, год выпуска ±2, в любом регионе' : 'объекты той же категории в том же населённом пункте'}.</p>
   </section>`;
 }
 document.addEventListener('click', e => {
@@ -2806,7 +2832,6 @@ function pageLot(id){
             <dt>Торги</dt><dd>${l.torg?dtm(l.torg)+(l.off?' · очно':['e-auction.by','minskestate.by','lotsale.by','butb.by','gostorg.by','bankrot-torg.by','specrealization.by','torgi.gov.by','etpvit.by','expert-torgi.by','realtorgi.by','iintorgi.by'].includes(l.platform)?' · онлайн':l.platform==='mgcn.by'?' · очно, г. Минск, ул. К. Маркса, 39':''):dt(l.req_to+86400)+' · ориентировочно'}</dd>
             <dt>Регион</dt><dd>${esc(l.region||'-')}</dd>
             ${l.area_num?`<dt>Площадь</dt><dd>${nf(l.area_num)} м²</dd>`:''}
-            <dt>${l.section==='arenda' ? 'Арендодатель' : ['minskestate.by','mgcn.by','lotsale.by','butb.by','gostorg.by'].includes(l.platform) ? 'Продавец' : 'Должник'}</dt><dd>${esc(l.debtor||'-')}</dd>
           </dl>
           <div class="cta">
             <a class="btn" href="${esc(l.url)}" target="_blank" rel="noopener">На площадке ↗</a>
@@ -2822,7 +2847,7 @@ function pageLot(id){
         </aside>
         ${arch && l.why!=='removed' ? resultBlock(l) : ''}
         ${l.alt?multiBlock(l):''}
-        ${l.market?marketBlock(l):''}
+        ${l.market&&l.market.manual?marketBlock(l):!arch&&(l.chance||l.market)?comboBlock(l):''}
       </div>
     </div>
     <div id="xhist"></div>
