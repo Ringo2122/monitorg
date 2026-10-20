@@ -419,6 +419,12 @@ module Src
     html.to_s[/class="timer"[^>]*data-datetime="(\d{9,})"/, 1]&.to_i
   end
 
+  # срок заявок — есть в тексте страниц торгов недвижимости: «Окончание приема заявлений - 18.11.2026 в 15.00»
+  def tk_req_to(html)
+    m = txt(html.to_s).match(/Окончание при[её]ма заявлени\S*\s*[-–:]?\s*(\d{2})\.(\d{2})\.(\d{4})\s*(?:в|г\.?\s*в)?\s*(\d{1,2})[.:](\d{2})/) or return nil
+    Time.local(m[3].to_i, m[2].to_i, m[1].to_i, m[4].to_i, m[5].to_i).to_i
+  end
+
   def tk_lot(html)
     html.to_s[/Лот №:\s*<span>(\d+)/, 1]
   end
@@ -563,8 +569,10 @@ module Src
   def kf_list(path)
     out = []
     seen = {}
+    pg = 'PAGEN_1'   # 20.10: у недвижимости страницы — PAGEN_2; имя берём из ссылок самой страницы
     (1..MAX_PAGES).each do |p|
-      html = get("#{KF}/#{path}/" + (p > 1 ? "?PAGEN_1=#{p}" : ''))
+      html = get("#{KF}/#{path}/" + (p > 1 ? "?#{pg}=#{p}" : ''))
+      pg = html[/\?(PAGEN_\d+)=2\b/, 1] || pg if html && p == 1
       return nil if !html && p == 1
       break unless html
       got = html.split('class="product-card grid-card-style"').drop(1).map do |ch|

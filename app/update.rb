@@ -447,6 +447,13 @@ unless RESULTS_ONLY || YEAR_ARCH
       m = re_cat.find { |c| norm.(c['name']) == norm.(l['name']) }
       l['tk'] = m && m['url']
       t = m && m['torg']
+      if m && (html = Src.get(m['url'])) && (rq = Src.tk_req_to(html)) && rq > now && rq != l['req_to']
+        STDERR.puts "konfiskat #{l['key']}: срок заявок → #{Time.at(rq).strftime('%d.%m %H:%M')}"
+        l['req_to'] = rq
+        secs = Store.details(l['key'])
+        secs.each { |sx| (sx['rows'] || []).each { |r| r[1] = Time.at(rq).strftime('%d.%m.%Y %H:%M') if r[0] == 'Приём заявок до' } }
+        Store.save_details(l['key'], secs)
+      end
     else
       html = l['tk'] && Src.get(l['tk'])
       next unless html                                   # не открылась — попробуем в следующий прогон
