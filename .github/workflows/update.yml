@@ -115,11 +115,17 @@ jobs:
       - name: Сборка сайта
         run: ruby app/build.rb
 
+      - name: Выкладка на hoster.by и копия для GitHub Pages
+        env:
+          HOSTER_SSH_KEY: ${{ secrets.HOSTER_SSH_KEY }}
+          HOSTER_KNOWN_HOSTS: ${{ secrets.HOSTER_KNOWN_HOSTS }}
+        run: bash tools/hoster.sh
+
       - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
 
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
         with:
-          path: _site
+          path: _pages
 
       - id: deploy
         uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4

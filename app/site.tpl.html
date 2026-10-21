@@ -244,14 +244,15 @@ applyTheme(window.THEME);
     .mmenu a.on{background:var(--brand-l);color:var(--brand-d)}
     .mmenu .btn.pri{margin-top:6px;text-align:center;color:#fff}
   }
-  /* телефон: в шапке логотип, кнопка каталога значком, лупа, кабинет и меню; «Помощь в аукционе» — в меню и на первом экране */
+  /* кнопка каталога — значком, только когда подпись «Весь каталог» не помещается в шапку (fitCb, 22.10) */
+  .hnav .cbtn.ico{width:40px;height:40px;padding:0;justify-content:center}
+  .hnav .cbtn.ico > span:last-child{display:none}
+  .hnav .cbtn.ico .cg{background:none}
+  /* телефон: в шапке логотип, кнопка каталога (значком, если подпись не влезает), лупа, кабинет и меню; «Помощь в аукционе» — в меню и на первом экране */
   @media (max-width:760px){
     .hrow{gap:8px;padding-block:9px}
     .logo .nm{font-size:18px}
     .hnav li.cm-li{margin:0}
-    .hnav .cbtn{width:40px;height:40px;padding:0;justify-content:center}
-    .hnav .cbtn > span:last-child{display:none}
-    .hnav .cbtn .cg{background:none}
     .hacts .btn.pri{display:none}
     .hacts{gap:6px}
     .hs-btn{width:40px;height:40px}
@@ -1468,7 +1469,13 @@ function loadArch(){
     if(ARCHW.length===1) loadArch1().then(()=>addScript('arch2.js'));
   });
 }
-const byId = id => DATA.find(l=>l.id===id) || (ARCH||ARCH1||[]).find(l=>l.id===id);
+// Номер пачки подробностей лота (det/p<номер>.js) — как в build.rb: crc32(id) % PACKS. Архивный лот лежит в своей пачке
+// целиком: старый лот открываем из неё, а не грузим весь архив (22.10: на макбуке лот из архива думал ~7 с)
+const PACKS = 1000;
+const CRC_T = (()=>{ const t = new Uint32Array(256); for(let n=0;n<256;n++){ let c = n; for(let k=0;k<8;k++) c = c&1 ? 0xEDB88320 ^ (c>>>1) : c>>>1; t[n] = c>>>0; } return t; })();
+const crc32 = s => { let c = 0xFFFFFFFF; for(const x of new TextEncoder().encode(s)) c = CRC_T[(c ^ x) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+const LOT1 = {};   // архивные лоты, открытые по одному
+const byId = id => DATA.find(l=>l.id===id) || (ARCH||ARCH1||[]).find(l=>l.id===id) || LOT1[id];
 
 /* ───────── шапка и меню ───────── */
 $('#f-upd').textContent = dtm(SNAP);
@@ -1486,6 +1493,15 @@ $('#nav').innerHTML = `<li class="cm-li"><button class="cbtn" id="cbtn" type="bu
   + '<rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6"/></svg><svg class="x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></span>'
   + '<span>Весь каталог</span></button></li>' + NAV_LINKS.map(([h,n])=>`<li><a href="${h}">${n}</a></li>`).join('');
 $('#mmenu').innerHTML = NAV_LINKS.map(([h,n])=>`<a href="${h}">${n}</a>`).join('') + '<a class="btn pri" href="#/help">Помощь в аукционе</a>';
+// «Весь каталог» с подписью, если она помещается в шапку; иначе — только значок (22.10, Артём: на телефоне и планшете
+// подпись пропадала всегда). Проверяем по факту: шапка не вылезает за край и логотип не сжат
+const fitCb = () => { const b = $('#cbtn'), row = $('header.main .hrow'), logo = $('header.main .logo'), acts = $('header.main .hacts');
+  if(!b || !row) return; b.classList.remove('ico');
+  const pr = parseFloat(getComputedStyle(row).paddingRight) || 0;
+  if(acts.getBoundingClientRect().right > row.getBoundingClientRect().right - pr + 1 || logo.scrollWidth > logo.clientWidth + 1) b.classList.add('ico'); };
+fitCb();
+addEventListener('resize', fitCb);
+if(document.fonts) document.fonts.ready.then(fitCb);
 
 /* ───────── поиск с подсказками ───────── */
 const norm = s => String(s||'').toLowerCase().replace(/ё/g,'е');
@@ -2006,7 +2022,7 @@ function eyes(root){
 }
 
 function filterPanel(list, f, sc){
-  const arch = f.st==='arch', src = arch ? (ARCH||[]) : DATA;
+  const arch = f.st==='arch', src = arch ? (ARCH||ARCH1||[]) : DATA;
   // Минск и Минская область — первыми, остальные области по алфавиту
   const rOrd = r => r==='г. Минск' ? 0 : r==='Минская область' ? 1 : 2;
   const regions=[...new Set(list.map(l=>l.region).filter(Boolean))].sort((a,b)=>rOrd(a)-rOrd(b) || a.localeCompare(b,'ru'));
@@ -2104,7 +2120,7 @@ function pageCatalog(sc, params){
   // вернулись с лота кнопкой «Назад» — тот же объём списка и то же место
   const pos = CAT_POS[CUR];
   if(pos && (PREV||'').startsWith('/lot/') && Date.now() - pos.t < 3*3600e3){ show = pos.show; RESTORE_Y = pos.y; }
-  const baseOf = () => { const src = FSTATE.st==='arch' ? (ARCH||[]) : DATA;
+  const baseOf = () => { const src = FSTATE.st==='arch' ? (ARCH||ARCH1||[]) : DATA;
     return sc ? src.filter(l=>inScope(l, sc)) : src; };
   const ct = sc && catTop(sc.top);
   $('#app').innerHTML = `<div class="wrap">
@@ -2202,8 +2218,12 @@ function pageCatalog(sc, params){
     $('#c-lede').textContent = arch
       ? 'Торги, по которым приём заявок завершён или лот снят с площадки. Храним их, даже когда площадка удаляет лот у себя.'
       : 'Лоты с открытым приёмом заявок. Каталог обновляется автоматически.';
-    if(arch && !ARCH){ $('#tb').innerHTML=''; $('#res').innerHTML = '<div class="skel"></div><div class="skel" style="margin-top:10px"></div>';
-      loadArch().then(()=>{ if($('#fwrap') && FSTATE.st==='arch'){ drawPanel(); render(true); } }); return; }
+    // архив: сначала свежий (arch.js, 45 дней) — он показывается сразу; весь (arch2.js, ~18 МБ) — в фоне, потом дорисовываем
+    // на том же месте (22.10: раньше каталог архива ждал весь архив, страница «замирала»)
+    if(arch && !ARCH1){ $('#tb').innerHTML=''; $('#res').innerHTML = '<div class="skel"></div><div class="skel" style="margin-top:10px"></div>';
+      loadArch1().then(()=>{ if($('#fwrap') && FSTATE.st==='arch'){ drawPanel(); render(true); } }); return; }
+    if(arch && !ARCH && !render.full){ render.full = 1;
+      setTimeout(()=>loadArch().then(()=>{ if($('#fwrap') && FSTATE.st==='arch'){ const y = scrollY; drawPanel(); render(true); scrollTo(0, y); } }), 600); }
     const base = baseOf(), list = applyFilters(base, FSTATE), nf_ = nFilters(FSTATE);
     // сохранённый поиск: только его новые лоты (SSNEW) или плашка «по вашему поиску N новых»
     let shown = list, nb = '', nwS = null;
@@ -2813,9 +2833,15 @@ const lotTitle = l => {
 };
 function pageLot(id){
   let l = byId(id);
-  if(!l && !ARCH){   // сначала свежий архив, не нашёлся — весь
+  if(!l && !ARCH){   // архивный лот — из его пачки; нет там (старая сборка) — свежий архив, потом весь
     $('#app').innerHTML = '<div class="wrap"><div class="skel" style="height:320px"></div></div>';
-    (ARCH1 ? loadArch() : loadArch1()).then(()=>{ if(CUR==='/lot/'+encodeURIComponent(id)){ pageLot(id); paint(); } });
+    const here = () => CUR==='/lot/'+encodeURIComponent(id);
+    const pk = crc32(String(id)) % PACKS;
+    loadDet({ id, pk }).then(d=>{
+      if(d && d.l) LOT1[id] = Object.assign(d.l, { pk });
+      if(LOT1[id]){ if(here()){ pageLot(id); paint(); } return; }
+      (ARCH1 ? loadArch() : loadArch1()).then(()=>{ if(here()){ pageLot(id); paint(); } });
+    });
     return;
   }
   if(!l){ document.title = 'Лот не найден' + TSUF; $('#app').innerHTML = `<div class="wrap">${crumbs([['Лот не найден']])}<div class="panel empty">Лот не найден - возможно, он уже удалён из архива.</div></div>`; return; }

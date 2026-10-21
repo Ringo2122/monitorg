@@ -37,6 +37,7 @@ require_relative 'statsfile'
 require_relative 'vat'
 require_relative 'chance'
 require_relative 'brands'
+require_relative 'pages'
 
 OUT  = ENV['OUT'] || File.join(Store::ROOT, '_site')
 TMP  = File.join(Store::ROOT, 'tmp')
@@ -415,6 +416,8 @@ order.group_by { |l| Zlib.crc32(l['id']) % PACKS }.each do |pk, chunk|
     end
     # «Право аренды»: ставка из извещения; для коэффициента спроса — зона Минска по карте МГЦН (zones.rb)
     x['r'] = l['rent'].merge(l['rent']['k'] == 'ks' ? { 'z' => Zones.at(l['geo']) } : {}) if l['rent']
+    # архивный лот — и сама карточка: приложение откроет его из пачки, не загружая весь архив (18 МБ, 22.10)
+    x['l'] = KEEP.each_with_object({}) { |k, h| h[k] = l[k] unless l[k].nil? } if l['status'] == 'archive'
     det[l['id']] = x
     FileUtils.cp(ph_src[l['key']] || Store.ph_path(l['key']), File.join(OUT, 'ph', "#{l['id']}.jpg")) if l['photo']
   end
@@ -517,6 +520,14 @@ html = tpl.sub('__DATA__') { JSON.generate(active.map(&slim)) }
           .sub('__THEME__') { JSON.generate((pub['home'] || {})['theme'] || {}) }   # общий стиль — до отрисовки, без мигания
 File.write(File.join(OUT, 'index.html'), html)
 File.write(File.join(OUT, 'arch.js'), "__arch(#{JSON.generate(arch1.map(&slim))});")
+# SEO-страницы (app/pages.rb): разделы, срезы, площадки, лоты, sitemap. SEO_PAGES=0 — не собирать
+unless ENV['SEO_PAGES'] == '0'
+  t0 = Time.now
+  r = Pages.run(out: OUT, active: active, arch: arch, details: ->(k) { Store.details(k) }, tree: Cats.tree, now: now,
+                template: File.read(File.join(__dir__, 'site.tpl.html'), encoding: 'UTF-8'),
+                theme: JSON.generate((pub['home'] || {})['theme'] || {}), ver: now.to_s, live: ENV['SEO_LIVE'] == '1')
+  puts "SEO-страницы: #{r[:pages]} (открыто поиску #{r[:indexed]}), лотов #{r[:lots]}, срезов #{r[:slices]}, #{(Time.now - t0).round} с"
+end
 # поиск по описанию: то, чего нет в карточке, — номера объекта, адрес, марка и модель, начало описания
 SRCH_ROWS = /\A(?:Адрес \(местонахождение\)|Местоположение имущества|Местонахождение имущества|Местонахождение|Местоположение|Марка|Модель|Марка \(модель\)|Идентификационный номер|Регистрационный номер|Кадастровый номер|Инвентарный номер.*|Инв\. номер|Год выпуска|Год)\z/
 DESC_ROWS = /\A(?:Описание(?: имущества)?|Дополнительная информация(?: по всему лоту)?)\z/
@@ -545,6 +556,8 @@ FileUtils.cp_r(File.join(__dir__, 'fonts'), File.join(OUT, 'fonts'))
 FileUtils.cp_r(File.join(__dir__, 'vendor'), File.join(OUT, 'vendor'))     # картинки сайта: 3D-значки «Почему МониТорг» (Fluent Emoji, MIT)
 # значок вкладки: без него браузер просит /favicon.ico и получает 404 (13.10 — сигнал мониторинга после переезда на monitorg.by)
 %w[favicon.svg favicon.ico apple-touch-icon.png admin-icon.svg admin-icon.png admin-icon-180.png logo-mark.png logo-mark-dark.png logo-mail.png].each { |f| FileUtils.cp(File.join(__dir__, f), File.join(OUT, f)) }
+# настройки сервера hoster.by (сжатие, кеш, https) — .htaccess; на GitHub Pages не мешает
+FileUtils.cp(File.join(__dir__, 'htaccess'), File.join(OUT, '.htaccess'))
 # политики по умолчанию (страницы «Политика конфиденциальности» и «Политика cookie», пока в админке нет своего текста)
 FileUtils.mkdir_p(File.join(OUT, 'docs'))
 Dir[File.join(__dir__, 'docs', '*.txt')].each { |f| FileUtils.cp(f, File.join(OUT, 'docs', File.basename(f))) }

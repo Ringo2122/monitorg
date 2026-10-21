@@ -1,0 +1,35 @@
+# МониТорг на hoster.by (Apache), 21.10.2026. Сборка кладёт этот файл в корень сайта как .htaccess.
+AddDefaultCharset utf-8
+DirectoryIndex index.html
+Options -Indexes
+
+# https и адрес без www (Let's Encrypt проверяет /.well-known/ по http). Шифрование снимает nginx хостинга, Apache видит
+# http — поэтому смотрим X-Forwarded-Proto (21.10: без этого https-запрос переадресовывался сам на себя)
+RewriteEngine On
+RewriteCond %{REQUEST_URI} !^/\.well-known/
+RewriteCond %{HTTP:X-Forwarded-Proto} !=https
+RewriteCond %{HTTPS} !=on
+RewriteCond %{HTTP_HOST} ^(?:www\.)?(.+)$ [NC]
+RewriteRule ^ https://%1%{REQUEST_URI} [L,R=301]
+RewriteCond %{HTTP_HOST} ^www\.(.+)$ [NC]
+RewriteRule ^ https://%1%{REQUEST_URI} [L,R=301]
+
+# служебное — не отдаём
+RedirectMatch 404 /\.(?!well-known)
+
+# сжатие
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css text/plain text/xml application/javascript application/json application/xml image/svg+xml
+</IfModule>
+
+# кеш: страницы и данные каталога — всегда свежие; фото, шрифты, стили и скрипты со ?v= — надолго
+<IfModule mod_headers.c>
+  <FilesMatch "\.(html|js|json|xml|txt|bin)$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+  <FilesMatch "\.(jpg|jpeg|png|webp|svg|ico|woff2?|css)$">
+    Header set Cache-Control "public, max-age=2592000"
+  </FilesMatch>
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
