@@ -98,6 +98,10 @@ module Cats
     when 'avto'
       return 'transport/prochij' if nm =~ rx('\A\s*(мотоцикл|мопед|скутер|квадроцикл)')
       return 'transport/selhoztehnika' if nm =~ rx('\A\s*трактор')
+      # прицепы, выставленные «легковыми» (21.10, konfiskat: Krone, Fisso, Grew Opalenica, МАЗ 993920) — по названию,
+      # марке прицепов или строке карточки «Тип транспорта: Прицепы полуприцепы»
+      return 'transport/pricepy' if nm =~ rx('\A\s*(полу)?прицеп|krone|fisso|grew|opalenica|schmitz|k[oö]gel|wielton|\A\s*99\d{4}\b') ||
+                                    card_text(l, details) =~ rx('прицепы\s+полуприцепы')
       return 'transport/' + van(nm, card_text(l, details), 'avto') if nm =~ VANS
       'transport/legkovye'
     when 'gruz', 'spec'

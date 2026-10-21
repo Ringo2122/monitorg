@@ -36,6 +36,7 @@ require_relative 'area'
 require_relative 'statsfile'
 require_relative 'vat'
 require_relative 'chance'
+require_relative 'brands'
 
 OUT  = ENV['OUT'] || File.join(Store::ROOT, '_site')
 TMP  = File.join(Store::ROOT, 'tmp')
@@ -46,7 +47,7 @@ PACKS = 1000
 # свежий архив — arch.js (календарь на главной, недавние лоты), старше — arch2.js
 ARCH_NEW = 45
 KEEP = %w[id art name price req_to torg url location region city debtor area_num platform section off
-          photo pk market prices status closed why first_seen alt pin result phx land sub chance].freeze
+          photo pk market prices status closed why first_seen alt pin result phx land sub chance brand].freeze
 SECS = %w[nedvizhimost avto gruz spec oborud arenda].freeze
 
 # Персональные данные: MASK=1 скрывает ФИО должников-физлиц и контактных лиц по осмотру.
@@ -226,6 +227,12 @@ lots.each do |l|
   l['pin'] = 1 if o['pinned'] && l['status'] == 'active'
 end
 
+# ёмкости и бочки — оборудование, даже если продавец поставил их в прицепы или сельхозтехнику (21.10, Артём:
+# torgi.gov.by «Ёмкость для молока», «Бочка ВУ-3»); МЖТ — машина для жидких удобрений, остаётся техникой. Раздел из админки главнее
+lots.each do |l|
+  next unless %w[avto gruz spec].include?(l['section']) && l['name'].to_s =~ /\A\s*(?:[её]мкость|бочка)/i && l['name'] !~ /МЖТ/i
+  l['section'] = 'oborud' unless ((OV[l['key']] || {})['fields'] || {})['section']
+end
 # раздел и подраздел каталога («transport/legkovye») — после правок человека: раздел мог смениться (app/cats.rb)
 lots.each { |l| l['sub'] = Cats.of(l, ->(k) { Store.details(k) }) }
 # подраздел, выбранный в админке, главнее робота (14.10); для админки — что определил бы робот по разделу площадки
@@ -236,6 +243,9 @@ lots.each do |l|
   auto_sub[l['key']] = Cats.of(l.merge('section' => orig[l['key']]['section']), ->(k) { Store.details(k) })
   l['sub'] = f['sub'] if Cats.valid?(f['sub'])
 end
+# марка — фильтр у легковых, грузовых и автобусов (app/brands.rb); пока только у активных лотов
+BRAND_SUBS = %w[transport/legkovye transport/gruzovye transport/avtobusy].freeze
+lots.each { |l| l['brand'] = Brands.of(l, Store.details(l['key']).flat_map { |x| x['rows'] || [] }) if l['status'] == 'active' && BRAND_SUBS.include?(l['sub']) }
 # город или район внутри области — второй уровень фильтра «Регион» (regions.rb), тоже после правок адреса в админке
 lots.each { |l| l['city'] = place_of(l['location'], l['region']) }
 

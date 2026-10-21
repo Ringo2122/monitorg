@@ -1769,6 +1769,7 @@ function resultBlock(l){
 
 /* ───────── фильтры ───────── */
 let FSTATE = {};
+const BRAND_SUBS = ['legkovye','gruzovye','avtobusy'];   // подразделы транспорта с фильтром «Марка»
 function applyFilters(list, f){
   // в долларах сравниваем ту же целую сумму, что написана под ценой («≈ 4 891 USD»)
   const arch = f.st==='arch', usd = fUsd(f), pv = l => usd ? Math.round(l.price / USD) : l.price;
@@ -1783,6 +1784,7 @@ function applyFilters(list, f){
     if(f.dto && torgAt(l) > new Date(f.dto+'T23:59:59').getTime()/1000) return false;
     // площадок можно выбрать несколько: plat — «a.by,b.by»
     if(f.plat){ const ps = String(f.plat).split(','); if(!ps.includes(l.platform) && !(l.alt||[]).some(a=>ps.includes(a.platform))) return false; }
+    if(f.brand && !String(f.brand).split(',').includes(l.brand)) return false;
     if(f.photo && !l.photo && !l.phx) return false;
     if(f.land && !l.land) return false;
     if(f.mkt && !l.market) return false;
@@ -1802,12 +1804,12 @@ function applyFilters(list, f){
     : s==='disc'?((discount(b)??-999)-(discount(a)??-999)) : a.req_to-b.req_to);
   return out;
 }
-const nFilters = f => ['q','cat','res','region','pmin','pmax','dfrom','dto','plat','photo','mkt','land','soon','fresh'].filter(k=>f[k]).length;
+const nFilters = f => ['q','cat','res','region','pmin','pmax','dfrom','dto','plat','brand','photo','mkt','land','soon','fresh'].filter(k=>f[k]).length;
 /* дата торгов; если площадка её не дала — ориентировочно следующий день после приёма заявок */
 const torgAt = l => l.torg || l.req_to + 86400;
 /* фильтры, которые переносятся при смене категории на странице раздела */
 let CARRY = null;
-const CARRY_KEYS = ['st','q','region','city','pmin','pmax','cur','dfrom','dto','plat','photo','mkt','land','sort'];
+const CARRY_KEYS = ['st','q','region','city','pmin','pmax','cur','dfrom','dto','plat','brand','photo','mkt','land','sort'];
 function fitFilters(){
   const fp = $('#fp'); if(!fp) return;
   if(innerWidth <= 760){ fp.style.top = ''; return; }
@@ -1894,14 +1896,15 @@ function dd(sel){
 
 /* Выпадающий список с выбором нескольких значений (фильтр «Площадка»): вид и анимация — как у dd(); список не закрывается
    после выбора — можно отметить несколько; «Все площадки» снимает выбор. items — [[значение, сколько лотов]] */
-function mdd(btn, items, sel, onChange){
+function mdd(btn, items, sel, onChange, o){
   if(!btn) return;
+  o = o || { all:'Все площадки', w:['площадка','площадки','площадок'], dot:1 };
   let ul = null;
   const label = () => { const a = [...sel];
-    btn.innerHTML = `<span>${a.length ? (a.length <= 2 ? a.map(esc).join(', ') : a.length + ' ' + plural(a.length,'площадка','площадки','площадок')) : 'Все площадки'}</span>`
+    btn.innerHTML = `<span>${a.length ? (a.length <= 2 ? a.map(esc).join(', ') : a.length + ' ' + plural(a.length, ...o.w)) : o.all}</span>`
       + '<svg viewBox="0 0 12 12"><path d="M2.5 4.5 6 8l3.5-3.5"/></svg>'; };
-  const draw = () => { ul.innerHTML = `<li role="option" data-p=""${sel.size ? '' : ' class="sel" aria-selected="true"'}>Все площадки</li>`
-    + items.map(([p, n]) => `<li role="option" data-p="${esc(p)}" class="${pslug(p)}${sel.has(p) ? ' sel' : ''}" aria-selected="${sel.has(p)}"><i class="pdot"></i><span>${esc(p)}</span><small>${nf(n)}</small></li>`).join(''); };
+  const draw = () => { ul.innerHTML = `<li role="option" data-p=""${sel.size ? '' : ' class="sel" aria-selected="true"'}>${o.all}</li>`
+    + items.map(([p, n]) => `<li role="option" data-p="${esc(p)}" class="${o.dot ? pslug(p) : ''}${sel.has(p) ? ' sel' : ''}" aria-selected="${sel.has(p)}">${o.dot ? '<i class="pdot"></i>' : ''}<span>${esc(p)}</span><small>${nf(n)}</small></li>`).join(''); };
   const place = () => { const r = btn.getBoundingClientRect(), h = ul.offsetHeight, below = innerHeight - r.bottom - 8;
     const up = below < h && r.top - 8 > below;
     ul.classList.toggle('up', up);
@@ -1922,7 +1925,8 @@ function mdd(btn, items, sel, onChange){
       draw(); label(); onChange([...sel]); };
     document.body.append(ul); place();
     btn.parentElement.classList.add('open'); btn.setAttribute('aria-expanded', 'true');
-    ['pointerdown', 'scroll', 'keydown'].forEach(t => addEventListener(t, away, true)); addEventListener('resize', away); };
+    ['pointerdown', 'scroll', 'keydown'].forEach(t => addEventListener(t, away, true)); addEventListener('resize', away);
+    addEventListener('hashchange', close, { once:true }); };   // ушли на другую страницу — список не остаётся висеть
   btn.onclick = () => ul ? close() : open();
   label();
 }
@@ -2013,6 +2017,14 @@ function filterPanel(list, f, sc){
   const plats=[...new Set(list.flatMap(l=>l.alt?l.alt.map(a=>a.platform):[l.platform]).concat(String(f.plat||'').split(',').filter(Boolean)))].sort();
   const nA = sc ? DATA.filter(l=>inScope(l, sc)).length : DATA.length, nX = sc ? (ARCHN.tree||{})[scPath(sc)]||0 : ARCHN['_']||0;
   const top = sc && catTop(sc.top);
+  // марка (21.10) — у активных легковых, грузовых, автобусов; по числу лотов, «Другие» — в конце; выбранные видны всегда
+  let brands = null;
+  if(!arch && top && top.k==='transport' && (!sc.sub || BRAND_SUBS.includes(sc.sub))){
+    const cnt = {}; list.forEach(l=>{ if(l.brand) cnt[l.brand] = (cnt[l.brand]||0) + 1; });
+    String(f.brand||'').split(',').filter(Boolean).forEach(b=>{ if(!cnt[b]) cnt[b] = 0; });
+    brands = Object.entries(cnt).sort((a,b)=>(a[0]==='Другие')-(b[0]==='Другие') || b[1]-a[1] || a[0].localeCompare(b[0],'ru'));
+    if(!brands.length) brands = null;
+  }
   return `<aside class="panel filters" id="fp">
     <div class="fh"><span>Фильтры</span><button class="lnk" id="f-reset">Сбросить</button>
       <button class="fclose" id="f-close" aria-label="Закрыть">✕</button></div>
@@ -2029,6 +2041,9 @@ function filterPanel(list, f, sc){
       ${top?`<div class="fg"><label for="f-sub">Подраздел</label><select id="f-sub"><option value="">Все подразделы</option>
         ${top.subs.map(s=>{ const c = src.filter(l=>l.sub===top.k+'/'+s.k).length;
           return `<option value="${s.k}"${sc.sub===s.k?' selected':''}>${esc(s.n)} · ${nf(c)}</option>`; }).join('')}</select></div>`:''}
+      ${brands?`<div class="fg"><label for="f-bdd">Марка</label><input type="hidden" id="f-brand" value="${esc(f.brand||'')}">
+        <div class="dd"><button type="button" class="dd-b" id="f-bdd" aria-haspopup="listbox" aria-expanded="false"
+          data-items="${esc(JSON.stringify(brands))}"></button></div></div>`:''}
       <div class="fg"><label for="f-region">Регион</label><select id="f-region"><option value="">Любой</option>
         ${regions.map(r=>`<option${f.region===r?' selected':''}>${esc(r)}</option>`).join('')}</select></div>
       ${places?`<div class="fg"><label for="f-city">Город или район</label><select id="f-city"><option value="">Вся область · ${nf(inReg.length)}</option>
@@ -2058,7 +2073,7 @@ function crumbs(parts){
 
 /* Фильтры каталога живут в адресе (#/s/avto?region=…&pmin=…): «Назад» с лота возвращает тот же поиск,
    а место в списке и «Показать ещё» восстанавливаются из CAT_POS. */
-const FKEYS = ['st','sort','q','cat','res','region','city','pmin','pmax','cur','dfrom','dto','plat','photo','mkt','land'];
+const FKEYS = ['st','sort','q','cat','res','region','city','pmin','pmax','cur','dfrom','dto','plat','brand','photo','mkt','land'];
 const CAT_POS = {};   // адрес каталога → { y, show, t }
 let CAT_NOW = null;   // открытый каталог: { hash, show }
 function pageCatalog(sc, params){
@@ -2120,7 +2135,7 @@ function pageCatalog(sc, params){
     const v = id => (document.getElementById(id)||{}).value || '';
     const c = id => (document.getElementById(id)||{}).checked ? '1' : '';
     FSTATE = {st:FSTATE.st, sort:FSTATE.sort, soon:FSTATE.soon, fresh:FSTATE.fresh, pin:FSTATE.pin, q:v('f-q').trim(), region:v('f-region'), city:v('f-city'), pmin:v('f-pmin'), cur:FSTATE.cur,
-      pmax:v('f-pmax'), dfrom:v('f-dfrom'), dto:v('f-dto'), plat:v('f-plat'), photo:c('f-photo'), mkt:c('f-mkt'), land:c('f-land'), cat:FSTATE.cat,
+      pmax:v('f-pmax'), dfrom:v('f-dfrom'), dto:v('f-dto'), plat:v('f-plat'), brand:v('f-brand'), photo:c('f-photo'), mkt:c('f-mkt'), land:c('f-land'), cat:FSTATE.cat,
       res:FSTATE.st==='arch'?v('f-res'):''};
   };
   const drawPanel = () => {
@@ -2134,6 +2149,7 @@ function pageCatalog(sc, params){
         if(id==='f-top' || id==='f-sub'){ const t = $('#f-top').value, s = id==='f-sub' ? el.value : ''; CARRY = {};
           CARRY_KEYS.forEach(k=>{ if(FSTATE[k]) CARRY[k] = FSTATE[k]; });
           if(t!=='nedvizhimost') delete CARRY.land;   // «только земельные участки» — у недвижимости
+          if(t!=='transport' || (s && !BRAND_SUBS.includes(s))) delete CARRY.brand;   // марка — у легковых, грузовых, автобусов
           FKEEP = { y:scrollY, open:$('#fp').classList.contains('open') };
           location.hash = t ? '#/c/' + t + (s ? '/' + s : '') : '#/catalog'; return; }
         // другая область — город прежней не подходит; список городов новой области появляется под «Регионом»
@@ -2152,6 +2168,8 @@ function pageCatalog(sc, params){
     // площадки — выпадающим списком с галочками, можно несколько (значение — в скрытом поле f-plat через запятую)
     mdd($('#f-pdd'), JSON.parse($('#f-pdd').dataset.items), new Set(String(FSTATE.plat||'').split(',').filter(Boolean)), a => {
       $('#f-plat').value = a.join(','); read(); render(); dirty = true; });
+    if($('#f-bdd')) mdd($('#f-bdd'), JSON.parse($('#f-bdd').dataset.items), new Set(String(FSTATE.brand||'').split(',').filter(Boolean)), a => {
+      $('#f-brand').value = a.join(','); read(); render(); dirty = true; }, { all:'Все марки', w:['марка','марки','марок'] });
     // «Сбросить» — к исходному виду этой страницы: раздел, лента («Истекающие», «Новые»), режим «Активные / Архив»
     $('#f-reset').onclick = () => { FSTATE = { st:FSTATE.st, cur:FSTATE.cur };
       if(view==='soon') FSTATE.soon = 1; if(view==='new'){ FSTATE.fresh = 1; FSTATE.sort = 'new'; } if(view==='pin') FSTATE.pin = 1;
@@ -3814,7 +3832,7 @@ function bindLotUser(l){
 }
 
 /* сохранённые поиски */
-const SS_KEYS = ['cat','q','region','city','pmin','pmax','dfrom','dto','plat','photo','mkt'];
+const SS_KEYS = ['cat','q','region','city','pmin','pmax','dfrom','dto','plat','brand','photo','mkt'];
 const dRu = s => s.split('-').reverse().join('.');
 function searchTitle(p){
   const a = [], s = p.sec || p.cat, sc = scOf(p.sub);
