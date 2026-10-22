@@ -4475,7 +4475,7 @@ async function meReport(M, id){
     }catch(e){ utoast(e.message, true); } b.disabled = false; };
 }
 
-function loadStatsJs(){ return new Promise((res, rej)=>{ if(window.BLStats) return res(); const s = document.createElement('script'); s.src = 'stats.js?v=' + SNAP;
+function loadStatsJs(){ return new Promise((res, rej)=>{ if(window.BLStats) return res(); const s = document.createElement('script'); s.src = '/stats.js?v=' + SNAP;   /* от корня: кабинет на /me/… (22.10: искался /me/stats.js) */
   s.onload = res; s.onerror = () => rej(new Error('не загрузилась аналитика')); document.head.appendChild(s); }); }
 let ME_STATS = null;
 async function meStats(M, arg, params){
