@@ -2913,10 +2913,10 @@ function pageLot(id){
   $('#app').innerHTML = `<div class="wrap">
     ${(() => { const sc = scOf(l.sub), t = sc && catTop(sc.top);
       const tr = t ? [[t.n, '#/c/'+t.k], ...(sc.sub ? [[scName(sc), '#/c/'+scPath(sc)]] : [])] : [[secName(l.section), '#/s/'+l.section]];
-      return crumbs([...tr, ...(arch?[['Архив', `#/${t ? 'c/'+scPath(sc) : 's/'+l.section}?st=arch`]]:[]), ['Лот '+l.art]]); })()}
+      return crumbs([...tr, ...(arch?[['Архив', `#/${t ? 'c/'+scPath(sc) : 's/'+l.section}?st=arch`]]:[]), [l.art ? 'Лот '+l.art : 'Лот']]); })()}
     <div class="lothead">
       <div class="tags"><span class="tag">${esc(subName(l))}</span>${(l.alt?l.alt.map(a=>a.platform):[l.platform]).map(p=>`<span class="tag g">${esc(p)}</span>`).join('')}
-        <span class="tag g mono">№ ${esc(String(l.art))}</span>${l.platform==='mgcn.by'?'<span class="tag">Очный аукцион</span>':''}${arch?'<span class="tag a">Архив</span>':''}${!arch&&isNew(l)?'<span class="tag n">Новый</span>':''}</div>
+        ${l.art ? `<span class="tag g mono">№ ${esc(String(l.art))}</span>` : ''}${l.platform==='mgcn.by'?'<span class="tag">Очный аукцион</span>':''}${arch?'<span class="tag a">Архив</span>':''}${!arch&&isNew(l)?'<span class="tag n">Новый</span>':''}</div>
       <h1 class="lotname">${esc(l.name)}</h1>
       <div class="where">${esc(l.location||'')}</div>
     </div>
@@ -2942,7 +2942,7 @@ function pageLot(id){
           </dl>
           <div class="cta">
             <a class="btn" href="${esc(l.url)}" target="_blank" rel="noopener">На площадке ↗</a>
-            <a class="btn pri" href="#/help?lot=${encodeURIComponent(l.art)}&id=${encodeURIComponent(l.id)}">Помощь с этим лотом</a>
+            <a class="btn pri" href="#/help?lot=${encodeURIComponent(l.art || '')}&id=${encodeURIComponent(l.id)}">Помощь с этим лотом</a>
           </div>
           <div id="ubox"></div>
           ${arch ? '' : `<div class="rep"><button class="lnk" type="button" id="rep-open">Сообщить об ошибке в лоте</button>
@@ -4553,9 +4553,10 @@ let CUR = null, PREV = null, RESTORE_Y = null, FKEEP = null, CAT_IO = null;   //
 let NAVN = 0;   // номер перехода: догрузка архива после ухода со страницы каталога не должна менять адрес (22.10)
 function render(path, params){
   for(const box of ['#nav', '#mmenu']){
-    const links = [...document.querySelectorAll(box + ' a:not(.btn)')], full = '#' + curRoute();
-    const cur = links.find(a=>a.getAttribute('href')===full) || links.find(a=>a.getAttribute('href')==='#'+path)
-      || (path.startsWith('/calc') || path==='/rent' ? links.find(a=>a.getAttribute('href')==='#/calc') : null);   // вкладки «Калькуляторов»
+    // маршрут ссылки: data-r (ссылки переписаны в настоящие адреса — fixLinks) или старый href="#/…" (22.10: подсветка пропала)
+    const links = [...document.querySelectorAll(box + ' a:not(.btn)')], full = curRoute(), rt = a => a.dataset.r || (a.getAttribute('href') || '').replace(/^#/, '');
+    const cur = links.find(a=>rt(a)===full) || links.find(a=>rt(a)===path)
+      || (path.startsWith('/calc') || path==='/rent' ? links.find(a=>rt(a)==='/calc') : null);   // вкладки «Калькуляторов»
     links.forEach(a=>a.classList.toggle('on', a===cur));
   }
   cmenu(false); mmenu(false);
@@ -4574,7 +4575,15 @@ function render(path, params){
   else if(path==='/help') pageHelp(params);
   else if(path==='/login') pageLogin(params);
   else if(path==='/me' || path.startsWith('/me/')) pageMe(path.slice(4), params);
-  else pageHome();
+  else if(path==='/' || path==='') pageHome();
+  else pageNotFound();
+}
+// адрес, которого нет (22.10: показывалась главная — для поисковика это копия главной; сервер отдаёт 404)
+function pageNotFound(){
+  document.title = 'Страница не найдена' + TSUF;
+  $('#app').innerHTML = `<div class="wrap">${crumbs([['Страница не найдена']])}<div class="panel empty"><h1>Страница не найдена</h1>
+    <p>Такой страницы на МониТорге нет: возможно, адрес набран с ошибкой или страница удалена.</p>
+    <p><a class="btn pri" href="#/catalog">Все лоты</a> <a class="btn" href="#/">На главную</a></p></div></div>`;
 }
 function go(){
   const h = curRoute();

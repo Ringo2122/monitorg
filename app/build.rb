@@ -395,11 +395,11 @@ if CFG['home'].is_a?(Hash)
   pub['home'] = home
 end
 if ADM['news']
-  FileUtils.mkdir_p(File.join(OUT, 'news'))
+  FileUtils.mkdir_p(File.join(OUT, 'media', 'news'))
   pub['news'] = ADM['news'].map do |n|
     img = n['photo'].to_s
     if img.start_with?('data:')
-      file = "news/#{Digest::MD5.hexdigest(n['slug'].to_s)[0, 10]}-#{Digest::MD5.hexdigest(img)[0, 8]}.jpg"
+      file = "media/news/#{Digest::MD5.hexdigest(n['slug'].to_s)[0, 10]}-#{Digest::MD5.hexdigest(img)[0, 8]}.jpg"
       File.binwrite(File.join(OUT, file), Base64.decode64(img.sub(/\Adata:[^,]*,/, '')))
       img = file
     end
