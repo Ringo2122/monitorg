@@ -4194,7 +4194,7 @@ async function pageMe(sub, params){
   if(!UB){ pageLogin(params); return; }
   $('#app').innerHTML = '<div class="wrap"><div class="skel" style="height:300px;margin-top:24px"></div></div>';
   await uload();
-  if(!ME){ location.replace('#/login?next=' + encodeURIComponent('/me' + (sub ? '/' + sub : ''))); return; }
+  if(!ME){ nav('/login?next=' + encodeURIComponent('/me' + (sub ? '/' + sub : '')), true); return; }   // 22.10: был location.replace('#/…') — после перехода на настоящие адреса страница оставалась пустой
   const [tab, arg] = sub.split('/');
   const cnt = { notify: ME.unread, reports: ME.reports_new, fav: Object.values(ULOTS).filter(u=>u.fav).length };
   $('#app').innerHTML = `<div class="wrap">${crumbs(tab ? [['Личный кабинет', '#/me'], [(ME_TABS.find(t=>t[0]===tab)||[,'Кабинет'])[1]]] : [['Личный кабинет']])}
