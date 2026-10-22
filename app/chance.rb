@@ -28,6 +28,7 @@ module Chance
     end
     lots.each do |l|
       next unless l['status'] == 'active'
+      next if l['platform'] == 'mgcn.by' || l['off']
       k = keys(l, l['price']).find { |x| cnt[x][0] >= MIN } or next
       n, y = cnt[k]
       l['chance'] = [(y * 100.0 / n).round, n]

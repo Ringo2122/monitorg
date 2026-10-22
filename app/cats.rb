@@ -37,6 +37,7 @@ module Cats
   SPEC = rx('погрузчик|экскаватор|кран|бульдозер|грейдер|каток|манипулятор|автовышк|мусоровоз|ассениз|эвакуатор|форвардер|харвестер')
   TRUCK_BODY = rx('самосвал|тягач|седельн|цистерн|бортов|фургон|рефрижер|изотерм')
   VANS = /crafter|sprinter|transit|ducato|boxer|jumper|\bmaster\b|movano|\bdaily\b|газел|gazel|соболь|\blt ?(28|35|46)\b|vario/i
+  BUS_MODEL = /(?:маз|maz)[\s-]*(?:1\d\d|2[0-5]\d)\d{0,3}\b|\bнеман\b|\bпаз\b|\bлиаз\b|ikarus|икарус/i
   VAN_PAS = /пассажир|микроавтобус|автобус|\d+\s*(пасс|посадочн|мест)|classi[ck]bus|kombi|tourneo|combi/i
   VAN_CAR = /грузов|фургон|бортов|рефриж|изотерм|цельнометалл|kasten|самосвал|эвакуат|шасси/i
 
@@ -87,6 +88,7 @@ module Cats
       return 'transport/selhoztehnika' if nm =~ rx('\A\s*трактор')
       return 'transport/pricepy' if nm =~ rx('\A\s*(полу)?прицеп|krone|fisso|grew|opalenica|schmitz|k[oö]gel|wielton|\A\s*99\d{4}\b') ||
                                     card_text(l, details) =~ rx('прицепы\s+полуприцепы')
+      return 'transport/avtobusy' if nm =~ BUS_MODEL
       return 'transport/' + van(nm, card_text(l, details), 'avto') if nm =~ VANS
       'transport/legkovye'
     when 'gruz', 'spec'
@@ -95,11 +97,13 @@ module Cats
       return 'transport/' + van(nm, txt, l['section']) if nm =~ VANS && l['section'] == 'gruz'
       return 'transport/selhoztehnika' if nm =~ AGRI
       return 'transport/pricepy' if nm =~ TRAILER && nm !~ rx('тягач')
-      return 'transport/avtobusy' if nm =~ rx('автобус')
-      return 'transport/spectehnika' if nm =~ SPEC
+      return 'transport/avtobusy' if nm =~ rx('автобус') || nm =~ BUS_MODEL
+      return 'transport/legkovye' if nm =~ rx('легков') && nm !~ rx('грузов')
       rows = details.call(l['key']).flat_map { |s| s['rows'] || [] }
-      body = (rows.find { |r| r.first.to_s =~ /тип кузова/i } || [])[1].to_s
+      body = (rows.find { |r| r.first.to_s =~ /тип кузова|тип (?:тс|транспортного средства)|вид транспорт/i } || [])[1].to_s
       body = txt[/тип кузова[:\s]*([а-яёa-z\- ]{3,30})/i, 1].to_s if body.empty?
+      return 'transport/avtobusy' if body =~ rx('автобус')
+      return 'transport/spectehnika' if nm =~ SPEC
       return 'transport/spectehnika' if l['section'] == 'spec' && "#{nm} #{body}" !~ TRUCK_BODY
       'transport/gruzovye'
     when 'nedvizhimost'

@@ -18,6 +18,7 @@ require_relative 'statsfile'
 require_relative 'vat'
 require_relative 'chance'
 require_relative 'brands'
+require_relative 'mgcn'
 require_relative 'pages'
 require 'cgi'
 
@@ -25,7 +26,7 @@ OUT  = ENV['OUT'] || File.join(Store::ROOT, '_site')
 TMP  = File.join(Store::ROOT, 'tmp')
 PACKS = 1000
 ARCH_NEW = 45
-KEEP = %w[id art name price req_to torg url location region city debtor area_num platform section off
+KEEP = %w[dn yr id art name price req_to torg url location region city debtor area_num platform section off
           photo pk market prices status closed why first_seen alt pin result phx land sub chance brand u].freeze
 SECS = %w[nedvizhimost avto gruz spec oborud arenda].freeze
 
@@ -217,6 +218,25 @@ end
 active = lots.select { |l| l['status'] == 'active' && !hidden_why[l['key']] }.sort_by { |l| l['req_to'].to_i }
 arch = lots.select { |l| l['status'] == 'archive' && !hidden_why[l['key']] }.sort_by { |l| -l['closed'].to_i }
 
+BARE_NAME = /\A(?:квартира|жилой дом|дом|жилое помещение|гараж|машино-?место|магазин|здание магазина|здание|помещение|изолированное помещение|капитальное строение|комплекс зданий|склад|павильон(?: торговый)?|земельный участок|баня|кафе|офис|столовая)\z/i
+(active + arch).each do |l|
+  n = l['name'].to_s.strip
+  n = n.sub(/[\s,;:–—-]*(?:№|N)?[\s,;:–—-]*\z/, '') while n =~ /[,;:–—-]\s*\z|(?:\s|,)(?:№|N)\s*\z/
+  if n.sub(/[.\s]+\z/, '') =~ BARE_NAME
+    n = n.sub(/[.\s]+\z/, '')
+    a = l['area_num'].to_f
+    tn = l['region'] == 'г. Минск' ? 'Минск' : (m = l['location'].to_s.match(Obj::PLACE)) ? m[2] : nil
+    n = [n, (a.positive? ? "#{a.round(1).to_s.sub(/\.0\z/, '').tr('.', ',')} м²" : nil), tn].compact.join(', ')
+  end
+  l['name'] = n unless n.empty?
+end
+active.group_by { |l| l['name'].to_s.downcase }.each_value { |v| v.each { |l| l['dn'] = 1 } if v.size > 1 }
+(active + arch).each do |l|
+  next unless %w[avto gruz spec].include?(l['section'])
+  y = Obj.year_of(l['status'] == 'active' ? Obj.rows_of(Store.details(l['key'])) : [], l['name'])
+  l['yr'] = y if y && y.between?(1950, Time.now.year + 1)
+end
+
 sig = lambda do |l|
   l['name'].to_s.downcase.tr('ё', 'е').gsub(/[^a-zа-я0-9]/, '') + '|' + l['price'].to_f.round.to_s
 end
@@ -334,7 +354,11 @@ order.group_by { |l| Zlib.crc32(l['id']) % PACKS }.each do |pk, chunk|
     if l['status'] == 'active' && l['geo'].is_a?(Array)
       x['g'] = l['geo'] + [l['platform'] == 'konfiskat.by' ? Obj.storage(Obj.rows_of(secs)) : l['location']]
     end
-    x['r'] = l['rent'].merge(l['rent']['k'] == 'ks' ? { 'z' => Zones.at(l['geo']) } : {}) if l['rent']
+    if l['rent']
+      rt = l['rent']
+      rt = Mg.rent(rt['raw'], nil, rt['S']) || rt if rt['k'] == 'ks' && rt['raw'] && l['platform'] == 'mgcn.by'
+      x['r'] = rt.merge(rt['k'] == 'ks' ? { 'z' => Zones.at(l['geo']) } : {})
+    end
     x['l'] = KEEP.each_with_object({}) { |k, h| h[k] = l[k] unless l[k].nil? } if l['status'] == 'archive'
     det[l['id']] = x
     FileUtils.cp(ph_src[l['key']] || Store.ph_path(l['key']), File.join(OUT, 'ph', "#{l['id']}.jpg")) if l['photo']
@@ -477,6 +501,10 @@ File.write(File.join(OUT, 'arch2.js'), "__arch2(#{JSON.generate(arch2.map(&slim)
 File.write(File.join(OUT, '.nojekyll'), '')
 adm = File.read(File.join(__dir__, 'admin.html'), encoding: 'UTF-8')
 FileUtils.cp(File.join(__dir__, 'stats.js'), File.join(OUT, 'stats.js'))
+FileUtils.mkdir_p(File.join(OUT, 'api'))
+Dir[File.join(__dir__, 'api', '*.php')].each { |f| FileUtils.cp(f, File.join(OUT, 'api', File.basename(f))) }
+File.write(File.join(OUT, 'api', 'cfg.php'), "<?php return #{JSON.generate('u' => ENV['SB_URL'], 'k' => ENV['SB_KEY']).gsub("'", '')
+  .then { |j| "json_decode('#{j}', true)" }};\n") if Sb.on?
 FileUtils.cp_r(File.join(__dir__, 'noph'), File.join(OUT, 'noph'))
 FileUtils.cp_r(File.join(__dir__, 'img'), File.join(OUT, 'img'))
 FileUtils.cp_r(File.join(__dir__, 'fonts'), File.join(OUT, 'fonts'))

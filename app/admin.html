@@ -706,7 +706,7 @@ async function pMarket(params){
 /* Заявки */
 async function pLeads(params){
   const st = params.get('st') || 'open';
-  const LS = { new:'Новая', work:'В работе', deal:'Сделка', refused:'Отказ' };
+  const LS = { new:'Новая', work:'В работе', deal:'Готово', refused:'Закрыта' };   // названия — решение Артёма 22.10; ключи в базе прежние
   RELOAD = async () => {
     const f = st==='open' ? 'status=in.(new,work)&' : st==='all' ? '' : `status=eq.${st}&`;
     const rows = await api(`leads?${f}select=*&order=created_at.desc&limit=300`);
@@ -731,7 +731,7 @@ async function pLeads(params){
     });
   };
   V().innerHTML = `<h1>Заявки «Помощь в аукционе»</h1><p class="lede">Заявки с формы на сайте. Статус и комментарий сохраняются сразу.</p>
-    <div class="tabs">${[['open','Новые и в работе'],['new','Новые'],['work','В работе'],['deal','Сделка'],['refused','Отказ'],['all','Все']].map(([k,t])=>`<a href="#leads?st=${k}" class="${k===st?'on':''}">${t}</a>`).join('')}</div>
+    <div class="tabs">${[['open','Новые и в работе'],['new','Новые'],['work','В работе'],['deal','Готово'],['refused','Закрыта'],['all','Все']].map(([k,t])=>`<a href="#leads?st=${k}" class="${k===st?'on':''}">${t}</a>`).join('')}</div>
     <div id="ldl"><p class="muted">Загрузка…</p></div>`;
   await RELOAD();
 }
@@ -912,6 +912,21 @@ const ntfForm = (all, hint) => `<div class="panel"><h2>${all ? 'Уведомле
 // номер лота из того, что вставили: номер, старая ссылка …/#/lot/<номер> или новый адрес …/lot/<имя>-<номер>/ (22.10, SEO этап 3) —
 // новый адрес переводим в номер по /assets/lot-urls.json (номер → адрес; есть у активных и у архива за 18 месяцев)
 let LOTURLS = null;
+// файлы отчётов на хостинге: загрузка частями, список, удаление (api/rf.php проверяет вход админа по x-admin-token)
+const RF = '../api/rf.php', RF_PART = 20 * 1024 * 1024;
+async function rfCall(q, o={}){
+  const r = await fetch(RF + '?' + q, Object.assign({ headers:Object.assign({ 'x-admin-token':TOKEN }, o.headers||{}) }, o));
+  let j = {}; try{ j = await r.json(); }catch(e){}
+  if(!r.ok) throw new Error(j.error || ('файлы: ошибка ' + r.status)); return j;
+}
+async function rfUpload(rid, f, prog){
+  for(let o = 0; o < f.size || o === 0; o += RF_PART){
+    const last = o + RF_PART >= f.size;
+    await rfCall(`a=up&r=${rid}&n=${enc(f.name)}&o=${o}${last ? '&last=1' : ''}`, { method:'POST', body:f.slice(o, o + RF_PART), headers:{ 'Content-Type':'application/octet-stream' } });
+    if(prog) prog(Math.round(Math.min(f.size, o + RF_PART) / Math.max(f.size, 1) * 100));
+    if(last) break;
+  }
+}
 async function lotIdOf(v){
   v = String(v || '').trim(); if(!v) return '';
   let m = v.match(/#\/lot\/([^?#]+)/); if(m) return decodeURIComponent(m[1]);
@@ -1020,11 +1035,12 @@ async function pUser(id, params){
       <div class="grid2"><label class="fld"><span>Лот</span><select id="r-lot"><option value="">- без привязки к лоту -</option>
           ${opts.map(x=>`<option value="${esc(x)}"${x===pre?' selected':''}>${esc(lots[x].name.slice(0,90))}</option>`).join('')}</select>
           <span class="hint">Лоты из избранного и заявок пользователя.</span></label>
-        <label class="fld"><span>Или адрес лота на сайте</span><input id="r-lotid" placeholder="адрес лота на сайте или номер, напр. bt-145082" value="${esc(pre && !opts.includes(pre) ? pre : '')}"></label></div>
+        <label class="fld"><span>Или найти любой лот: название, номер или адрес на сайте</span><input id="r-lotid" placeholder="например: Geely Emgrand, bt-145082 или ссылка" autocomplete="off" value="${esc(pre && !opts.includes(pre) ? pre : '')}">
+          <span class="hint" id="r-lotres"></span></label></div>
       <label class="fld"><span>Заголовок</span><input id="r-title" placeholder="Например: Проверка объекта перед задатком"></label>
       <label class="fld"><span>Текст отчёта</span><textarea id="r-body" rows="9" placeholder="Выводы, риски, рекомендации по цене…"></textarea></label>
       <div class="grid2"><label class="fld"><span>Ссылка (необязательно)</span><input id="r-link" placeholder="https://…"></label>
-        <label class="fld"><span>Файл: PDF, фото, документ - до 5 МБ</span><input type="file" id="r-file"></label></div>
+        <label class="fld"><span>Файлы: PDF, фото, документы, видео - можно несколько, размер не ограничен</span><input type="file" id="r-file" multiple></label></div>
       <button class="btn pri" id="r-send">Отправить в кабинет</button></div>
     <div class="panel"><h2>Отправленные отчёты</h2>${rp.length?`<table><tr><th>Когда</th><th>Отчёт</th><th>Лот</th><th>Прочитан</th><th></th></tr>
       ${rp.map(r=>`<tr><td>${dt(r.created_at)}</td><td><b>${esc(r.title)}</b>${r.file_name?`<br><span class="muted">📎 ${esc(r.file_name)}</span>`:''}</td><td>${r.lot?lotLink(r.lot):'-'}</td>
@@ -1034,26 +1050,41 @@ async function pUser(id, params){
         <td>${l?(l.status==='active'?'заявки до '+dt(l.req_to):'архив'):'-'}</td><td>${esc(STAGE[x.stage]||'-')}</td><td style="white-space:normal;max-width:280px">${esc(x.note||'')}</td>
         <td>${x.fav?'★ ':''}${x.watch?'🔔':''}</td></tr>`; }).join('')}</table></div>`:'<p class="muted">Пусто.</p>'}</div>
     <div class="panel"><h2>Заявки на помощь</h2>${ld.length?`<table><tr><th>Когда</th><th>Лот</th><th>Услуга</th><th>Статус</th></tr>
-      ${ld.map(r=>`<tr><td>${dt(r.created_at)}</td><td>${r.lot_id?lotLink(r.lot_id):esc(r.lot||'-')}</td><td>${esc(r.service||'-')}</td><td>${esc({new:'Новая',work:'В работе',deal:'Сделка',refused:'Отказ'}[r.status])}</td></tr>`).join('')}</table>`
+      ${ld.map(r=>`<tr><td>${dt(r.created_at)}</td><td>${r.lot_id?lotLink(r.lot_id):esc(r.lot||'-')}</td><td>${esc(r.service||'-')}</td><td>${esc({new:'Новая',work:'В работе',deal:'Готово',refused:'Закрыта'}[r.status])}</td></tr>`).join('')}</table>`
       :'<p class="muted">Заявок нет.</p>'}<p class="muted">Статусы меняются в разделе «Заявки» - пользователь получает уведомление.</p></div>
     <div class="panel"><h2>Сохранённые поиски</h2>${ss.length?ss.map(x=>`<div>${esc(x.name)} ${x.notify?'<span class="chip g">уведомления</span>':''}</div>`).join(''):'<p class="muted">Нет.</p>'}</div>`;
   V().querySelectorAll('[data-rdel]').forEach(b=>b.onclick = async ()=>{ if(!confirm('Удалить отчёт из кабинета пользователя?')) return;
+    try{ await rfCall(`a=rm&r=${b.dataset.rdel}`, { method:'POST' }); }catch(e){}   // файлы на хостинге — вместе с отчётом
     try{ await api(`reports?id=eq.${b.dataset.rdel}`, { method:'DELETE' }); toast('Удалено'); route(); }catch(err){ toast(err.message, true); } });
   if($('#n-send')) ntfBind(id, () => { $('#n-title').value = $('#n-body').value = $('#n-lot').value = ''; });
+  // поиск лота для отчёта по всему каталогу (22.10: в списке были только избранное и заявки пользователя — часто пусто)
+  let lq = 0;
+  $('#r-lotid').oninput = () => { const q = $('#r-lotid').value.trim(), n = ++lq, box = $('#r-lotres');
+    if(q.length < 3 || /\/lot\/|#\//.test(q)){ box.innerHTML = ''; return; }
+    setTimeout(async () => { if(n !== lq) return;
+      try{ const w = q.replace(/[*,()"]/g, ' ').trim();
+        const r = await api(`lots?select=id,name,status,price&or=(name.ilike.*${enc(w)}*,id.ilike.*${enc(w)}*)&order=status.asc,req_to.desc&limit=12`);
+        if(n !== lq) return;
+        box.innerHTML = r.length ? r.map(l=>`<a href="#" data-pick="${esc(l.id)}" style="display:block">${esc(l.name.slice(0,80))} <span class="muted">· ${esc(l.id)}${l.status==='archive'?' · архив':''}</span></a>`).join('') : 'Ничего не нашлось';
+        box.querySelectorAll('[data-pick]').forEach(a=>a.onclick = e => { e.preventDefault(); const l = r.find(x=>x.id===a.dataset.pick);
+          const sel = $('#r-lot'); if(![...sel.options].some(o=>o.value===l.id)) sel.add(new Option(l.name.slice(0,90), l.id));
+          lots[l.id] = lots[l.id] || l; sel.value = l.id; $('#r-lotid').value = ''; box.innerHTML = ''; });
+      }catch(err){ box.textContent = err.message; } }, 300); };
   $('#r-send').onclick = async ()=>{
-    const btn = $('#r-send'), title = $('#r-title').value.trim(), file = $('#r-file').files[0];
+    const btn = $('#r-send'), title = $('#r-title').value.trim(), files = [...$('#r-file').files];
     let lot = $('#r-lot').value;
     if(!lot){ try{ lot = await lotIdOf($('#r-lotid').value); }catch(err){ toast(err.message, true); return; } }
     if(!title){ toast('Впишите заголовок', true); return; }
-    if(file && file.size > 5*1024*1024){ toast('Файл больше 5 МБ', true); return; }
     btn.disabled = true;
     try{
       let lotName = lot && lots[lot] ? lots[lot].name : null;
       if(lot && !lotName){ const r = await api(`lots?id=eq.${enc(lot)}&select=name`); if(!r[0]){ toast('Лот с таким адресом не найден', true); btn.disabled = false; return; } lotName = r[0].name; }
       const [rep] = await api('reports', { method:'POST', prefer:'return=representation', body:[{ user_id:id, lot:lot||null, lot_name:lotName, title,
-        body:$('#r-body').value.trim()||null, link:$('#r-link').value.trim()||null, file_name:file?file.name:null, file_type:file?file.type:null, file_size:file?file.size:null }] });
-      if(file){ const data = await new Promise((res, rej)=>{ const fr = new FileReader(); fr.onload = ()=>res(String(fr.result).split(',')[1]); fr.onerror = ()=>rej(new Error('не прочитался файл')); fr.readAsDataURL(file); });
-        await api('report_files', { method:'POST', body:[{ report_id:rep.id, data }], prefer:'return=minimal' }); }
+        body:$('#r-body').value.trim()||null, link:$('#r-link').value.trim()||null,
+        file_name:files.length ? (files.length === 1 ? files[0].name : files.length + ' ' + plural(files.length,'файл','файла','файлов')) : null,
+        file_type:files.length === 1 ? files[0].type : null, file_size:files.length ? files.reduce((a,f)=>a + f.size, 0) : null }] });
+      // файлы — на хостинг (../api/rf.php), частями по 20 МБ (22.10: раньше один файл до 5 МБ в базе)
+      for(const [k, f] of files.entries()) await rfUpload(rep.id, f, p => { btn.textContent = `Загрузка ${k+1}/${files.length}: ${p}%`; });
       toast('Отчёт отправлен в кабинет'); route();
     }catch(err){ toast(err.message, true); btn.disabled = false; }
   };

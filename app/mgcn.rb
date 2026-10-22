@@ -80,11 +80,13 @@ module Mg
       elsif w =~ /этаж|подвал|цокол|антресол|мансард/i
         s = w[/\(([\d,]+)\s*кв/, 1]
         spec['parts'] << { 'ks' => ks, 'what' => w.sub(/\s*\([^)]*\)\s*\z/, '').strip, 'S' => s && n.(s) }.compact
+      elsif w =~ /перв\S*\s+год|(?:\A|\s)1(?:-?й)?\s+год/i
+        spec['steps'] << { 'ks' => ks, 'm' => 12 }
       elsif (mo = w[/(\d+|одн\S+|двух|два|тр[её]х|три|шести|шесть)\s*(?:первых\s*)?месяц/i, 1] || (w =~ /первы\S* месяц/ ? '1' : nil))
         words = { 'одн' => 1, 'два' => 2, 'двух' => 2, 'три' => 3, 'трех' => 3, 'трёх' => 3, 'шесть' => 6, 'шести' => 6 }
         spec['steps'] << { 'ks' => ks, 'm' => mo =~ /\d/ ? mo.to_i : words.find { |k, _| mo.downcase.start_with?(k) }&.last }
       else
-        spec['steps'] << { 'ks' => ks }
+        spec['steps'] << { 'ks' => ks, 'w' => (w.empty? || w.size > 60 ? nil : w) }.compact
       end
     end
     spec['steps'].empty? && spec['parts'].empty? ? { 'k' => 'raw', 'raw' => t } : spec

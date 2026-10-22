@@ -1122,7 +1122,10 @@ applyTheme(window.THEME);
   .evd{flex:none;width:112px;font-weight:700;color:var(--ink-2);font-size:13px}
   .nrow,.orow{display:flex;gap:12px;align-items:flex-start;padding:10px 6px;border-bottom:1px solid var(--hair);text-decoration:none;color:var(--ink)}
   .nrow:last-child,.orow:last-child{border-bottom:0}
-  .nrow:hover{background:var(--bg)}
+  .rfiles{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px}
+  .lot .nmn{font-weight:500;color:var(--ink-3);white-space:nowrap}
+  .nrow,.orow{transition:background .2s ease,color .2s ease} .nrow b{transition:color .2s ease}
+  .nrow:hover,a.orow:hover{background:var(--bg);text-decoration:none} .nrow:hover b,a.orow:hover b{color:var(--brand)}   /* 22.10: без подчёркивания — подсветка, как в меню */
   .nrow.un{background:var(--brand-l)}.nrow.un b{color:var(--brand-d)}
   .ntag{flex:none;font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:12px;background:var(--bg);color:var(--ink-2);margin-top:1px;min-width:92px;text-align:center}
   .ntag.g{background:var(--ok-l);color:var(--ok)}.ntag.a{background:var(--accent-l);color:#9a4f0e}.ntag.b{background:var(--brand-l);color:var(--brand)}
@@ -1797,8 +1800,9 @@ function lotCard(l, inArch){
     </div>
     <div class="body">
       <div class="kind">${esc(subName(l))}</div>
-      <div class="nm">${esc(l.name)}</div>
-      <div class="pr">${nf(l.price)} <span>BYN</span>${pc!==null&&pc<0?`<em class="down">↓ ${-pc}%</em>`:''}</div>
+      <div class="nm">${esc(l.name)}${l.dn && l.art ? `<span class="nmn"> · лот № ${esc(String(l.art))}</span>` : ''}</div>
+      <div class="pr">${nf(l.price)} <span>BYN${l.section==='arenda' && l.platform==='auction24.by' ? ' в месяц' : ''}</span>${pc!==null&&pc<0?`<em class="down">↓ ${-pc}%</em>`:''}</div>
+      ${l.section==='arenda' && l.platform!=='auction24.by' ? '<div class="pr2">цена права аренды</div>' : ''}
       ${usdTxt(l.price)?`<div class="pr2">${usdTxt(l.price)}</div>`:''}
       ${disc?`<div class="dsc">${DOWN}На ${disc}% дешевле рынка</div>`:''}
       <div class="loc">${esc(l.location||'-')}</div>
@@ -1855,6 +1859,11 @@ function applyFilters(list, f){
     if(f.city && l.city!==f.city) return false;
     if(f.pmin && pv(l) < +f.pmin) return false;
     if(f.pmax && pv(l) > +f.pmax) return false;
+    // год выпуска (транспорт) и площадь (недвижимость, аренда) — 22.10; у лота без года или площади фильтр его скрывает
+    if(f.ymin && !(l.yr >= +f.ymin)) return false;
+    if(f.ymax && !(l.yr && l.yr <= +f.ymax)) return false;
+    if(f.amin && !(l.area_num >= +f.amin)) return false;
+    if(f.amax && !(l.area_num && l.area_num <= +f.amax)) return false;
     if(f.cat && l.section!==f.cat) return false;
     if(arch && f.res && !resMatch(l, f.res)) return false;
     if(f.dfrom && torgAt(l) < new Date(f.dfrom+'T00:00:00').getTime()/1000) return false;
@@ -1881,12 +1890,12 @@ function applyFilters(list, f){
     : s==='disc'?((discount(b)??-999)-(discount(a)??-999)) : a.req_to-b.req_to);
   return out;
 }
-const nFilters = f => ['q','cat','res','region','pmin','pmax','dfrom','dto','plat','brand','photo','mkt','land','soon','fresh'].filter(k=>f[k]).length;
+const nFilters = f => ['q','cat','res','region','pmin','pmax','ymin','ymax','amin','amax','dfrom','dto','plat','brand','photo','mkt','land','soon','fresh'].filter(k=>f[k]).length;
 /* дата торгов; если площадка её не дала — ориентировочно следующий день после приёма заявок */
 const torgAt = l => l.torg || l.req_to + 86400;
 /* фильтры, которые переносятся при смене категории на странице раздела */
 let CARRY = null;
-const CARRY_KEYS = ['st','q','region','city','pmin','pmax','cur','dfrom','dto','plat','brand','photo','mkt','land','sort'];
+const CARRY_KEYS = ['st','q','region','city','pmin','pmax','ymin','ymax','amin','amax','cur','dfrom','dto','plat','brand','photo','mkt','land','sort'];
 function fitFilters(){
   const fp = $('#fp'); if(!fp) return;
   if(innerWidth <= 760){ fp.style.top = ''; return; }
@@ -2094,6 +2103,7 @@ function filterPanel(list, f, sc){
   const plats=[...new Set(list.flatMap(l=>l.alt?l.alt.map(a=>a.platform):[l.platform]).concat(String(f.plat||'').split(',').filter(Boolean)))].sort();
   const nA = sc ? DATA.filter(l=>inScope(l, sc)).length : DATA.length, nX = sc ? (ARCHN.tree||{})[scPath(sc)]||0 : ARCHN['_']||0;
   const top = sc && catTop(sc.top);
+  const yrF = (top && top.k==='transport') || ['avto','gruz','spec'].includes(f.cat), arF = (top && ['nedvizhimost','arenda'].includes(top.k)) || ['nedvizhimost','arenda'].includes(f.cat);
   // марка (21.10) — у активных легковых, грузовых, автобусов; по числу лотов, «Другие» — в конце; выбранные видны всегда
   let brands = null;
   if(!arch && top && top.k==='transport' && (!sc.sub || BRAND_SUBS.includes(sc.sub))){
@@ -2129,6 +2139,12 @@ function filterPanel(list, f, sc){
         `<button type="button" data-c="${c}"${(fUsd(f)?'USD':'BYN')===c?' class="on" aria-pressed="true"':' aria-pressed="false"'}>${c}</button>`).join('')}</span>`:''}</div><div class="two">
         <input id="f-pmin" type="number" placeholder="от" value="${esc(f.pmin||'')}">
         <input id="f-pmax" type="number" placeholder="до" value="${esc(f.pmax||'')}"></div></div>
+      ${yrF ? `<div class="fg"><label for="f-ymin">Год выпуска: от - до</label><div class="two">
+        <input id="f-ymin" type="number" inputmode="numeric" placeholder="от" value="${esc(f.ymin||'')}" aria-label="Год выпуска от">
+        <input id="f-ymax" type="number" inputmode="numeric" placeholder="до" value="${esc(f.ymax||'')}" aria-label="Год выпуска до"></div></div>` : ''}
+      ${arF ? `<div class="fg"><label for="f-amin">Площадь, м²: от - до</label><div class="two">
+        <input id="f-amin" type="number" inputmode="decimal" placeholder="от" value="${esc(f.amin||'')}" aria-label="Площадь от">
+        <input id="f-amax" type="number" inputmode="decimal" placeholder="до" value="${esc(f.amax||'')}" aria-label="Площадь до"></div></div>` : ''}
       <div class="fg"><label for="f-dfrom">Дата торгов: от - до</label><div class="two">
         <input id="f-dfrom" type="date" value="${esc(f.dfrom||'')}" aria-label="Дата торгов от">
         <input id="f-dto" type="date" value="${esc(f.dto||'')}" aria-label="Дата торгов до"></div></div>
@@ -2150,7 +2166,7 @@ function crumbs(parts){
 
 /* Фильтры каталога живут в адресе (#/s/avto?region=…&pmin=…): «Назад» с лота возвращает тот же поиск,
    а место в списке и «Показать ещё» восстанавливаются из CAT_POS. */
-const FKEYS = ['st','sort','q','cat','res','region','city','pmin','pmax','cur','dfrom','dto','plat','brand','photo','mkt','land'];
+const FKEYS = ['st','sort','q','cat','res','region','city','pmin','pmax','ymin','ymax','amin','amax','cur','dfrom','dto','plat','brand','photo','mkt','land'];
 const CAT_POS = {};   // адрес каталога → { y, show, t }
 let CAT_NOW = null;   // открытый каталог: { hash, show }
 function pageCatalog(sc, params){
@@ -2213,12 +2229,12 @@ function pageCatalog(sc, params){
     const v = id => (document.getElementById(id)||{}).value || '';
     const c = id => (document.getElementById(id)||{}).checked ? '1' : '';
     FSTATE = {st:FSTATE.st, sort:FSTATE.sort, soon:FSTATE.soon, fresh:FSTATE.fresh, pin:FSTATE.pin, q:v('f-q').trim(), region:v('f-region'), city:v('f-city'), pmin:v('f-pmin'), cur:FSTATE.cur,
-      pmax:v('f-pmax'), dfrom:v('f-dfrom'), dto:v('f-dto'), plat:v('f-plat'), brand:v('f-brand'), photo:c('f-photo'), mkt:c('f-mkt'), land:c('f-land'), cat:FSTATE.cat,
+      pmax:v('f-pmax'), ymin:v('f-ymin'), ymax:v('f-ymax'), amin:v('f-amin'), amax:v('f-amax'), dfrom:v('f-dfrom'), dto:v('f-dto'), plat:v('f-plat'), brand:v('f-brand'), photo:c('f-photo'), mkt:c('f-mkt'), land:c('f-land'), cat:FSTATE.cat,
       res:FSTATE.st==='arch'?v('f-res'):''};
   };
   const drawPanel = () => {
     $('#fwrap').innerHTML = filterPanel(baseOf(), FSTATE, sc);
-    ['f-q','f-top','f-sub','f-res','f-region','f-city','f-pmin','f-pmax','f-dfrom','f-dto','f-plat','f-photo','f-mkt','f-land'].forEach(id=>{
+    ['f-q','f-top','f-sub','f-res','f-region','f-city','f-pmin','f-pmax','f-ymin','f-ymax','f-amin','f-amax','f-dfrom','f-dto','f-plat','f-photo','f-mkt','f-land'].forEach(id=>{
       const el = document.getElementById(id); if(!el) return;
       const run = () => { PTM = null;
         read();
@@ -2226,7 +2242,9 @@ function pageCatalog(sc, params){
         // на месте (15.10: переход поднимал наверх), на телефоне шторка фильтров остаётся открытой
         if(id==='f-top' || id==='f-sub'){ const t = $('#f-top').value, s = id==='f-sub' ? el.value : ''; CARRY = {};
           CARRY_KEYS.forEach(k=>{ if(FSTATE[k]) CARRY[k] = FSTATE[k]; });
-          if(t!=='nedvizhimost') delete CARRY.land;   // «только земельные участки» — у недвижимости
+          if(t!=='nedvizhimost') delete CARRY.land;
+          if(t!=='transport'){ delete CARRY.ymin; delete CARRY.ymax; }
+          if(t!=='nedvizhimost' && t!=='arenda'){ delete CARRY.amin; delete CARRY.amax; }   // «только земельные участки» — у недвижимости
           if(t!=='transport' || (s && !BRAND_SUBS.includes(s))) delete CARRY.brand;   // марка — у легковых, грузовых, автобусов
           FKEEP = { y:scrollY, open:$('#fp').classList.contains('open') };
           nav(t ? '#/c/' + t + (s ? '/' + s : '') : '#/catalog'); return; }
@@ -2236,7 +2254,7 @@ function pageCatalog(sc, params){
         render(); dirty = true; };
       // цена: список обновляем, когда перестали печатать (0,7 с) или нажали Enter / ушли из поля, а не на каждую цифру
       // (15.10: при вводе «30000» список подбирался на «3», «30»… и прыгал)
-      const pr = id==='f-pmin' || id==='f-pmax';
+      const pr = /^f-[pya](min|max)$/.test(id);
       el.addEventListener(el.tagName==='SELECT'||el.type==='checkbox'||el.type==='date'?'change':'input', ()=>{
         if(pr){ clearTimeout(PTM); PTM = setTimeout(run, 700); } else run(); });
       if(pr) el.addEventListener('change', ()=>{ if(PTM){ clearTimeout(PTM); run(); } });
@@ -2624,7 +2642,8 @@ function rentBlock(l, r){
       else notes.push('Площади частей в извещении не указаны - показана ставка за 1 м²; площади уточните у арендодателя.');
     } else {
       r.steps.forEach((s, i) => rows.push(line(r.steps.length === 1 ? `Коэффициент спроса ${k(s.ks)}`
-          : s.m ? `Первые ${s.m} ${plural(s.m,'месяц','месяца','месяцев')} - коэффициент спроса ${k(s.ks)}` : `Дальше - коэффициент спроса ${k(s.ks)}`,
+          : s.m ? `${s.m === 12 ? 'Первый год' : s.m % 12 === 0 ? `Первые ${s.m / 12} ${plural(s.m / 12,'год','года','лет')}` : `Первые ${s.m} ${plural(s.m,'месяц','месяца','месяцев')}`} - коэффициент спроса ${k(s.ks)}`
+          : `${s.w ? esc(s.w[0].toUpperCase() + s.w.slice(1)) : i ? 'Дальше' : 'Сначала'} - коэффициент спроса ${k(s.ks)}`,   // 22.10: «Дальше» у обеих строк
         amt(s.ks, r.S) + ' в месяц', i === r.steps.length - 1)));
     }
     const one = !r.parts.length && r.steps.length === 1, perM2 = r.parts.length && !r.parts.every(p=>p.S);
@@ -2890,10 +2909,23 @@ function bindLotReport(l){
 // длинное — по целому слову, чтобы «- МониТорг» не уходил далеко за край
 const lotTitle = l => {
   let t = String(l.name || '').replace(/[\s,;(]*(?:vin|вин)\s*[:№#-]?\s*[A-HJ-NPR-Z0-9]{8,17}\)?/gi, '')
-    .replace(/[\s,;(]*\b(?=[A-HJ-NPR-Z0-9]*\d)(?=[A-HJ-NPR-Z0-9]*[A-HJ-NPR-Z])[A-HJ-NPR-Z0-9]{17}\b\)?/g, '').replace(/\s+/g, ' ').trim();
+    .replace(/[\s,;(]*\b(?=[A-HJ-NPR-Z0-9]*\d)(?=[A-HJ-NPR-Z0-9]*[A-HJ-NPR-Z])[A-HJ-NPR-Z0-9]{17}\b\)?/g, '').replace(/\s+/g, ' ').trim()
+    .replace(/[\s,;:–-]*(?:№|N)?[\s,;:–-]*$/, '');   // без VIN остаётся висящий «№» (22.10)
   if(t.length > 50) t = t.slice(0, 50).replace(/[\s,;:(-]+[^\s]*$/, '') + '…';
   return t || String(l.name || '').slice(0, 50);
 };
+// «Похожие лоты» (22.10, обход №2: к Geely Emgrand 2023 показывались Santa Fe 2003 и ВАЗ; у аренды блок бывал пустым):
+// тот же раздел, очки за подраздел, марку, год ±3, цену в 2 раза, город/регион и площадь; не хватает своего подраздела —
+// добираем из раздела (аренда: помещения, площадки, земля — всё «право аренды»)
+function similarLots(l){
+  const near = (a, b, k) => a > 0 && b > 0 && a / b <= k && b / a <= k;
+  const score = x => (x.sub===l.sub ? 4 : 0) + (l.brand && x.brand===l.brand && l.brand!=='Другие' ? 5 : 0)
+    + (l.yr && x.yr && Math.abs(x.yr - l.yr) <= 3 ? 3 : 0) + (near(x.price, l.price, 2) ? 2 : near(x.price, l.price, 4) ? 1 : 0)
+    + (l.city && x.city===l.city ? 2 : 0) + (x.region===l.region ? 1 : 0) + (near(x.area_num, l.area_num, 2) ? 2 : 0);
+  const top = x => x.sub ? x.sub.split('/')[0] : x.section;   // раздел каталога (транспорт — легковые, грузовые, спецтехника вместе)
+  return DATA.filter(x=>top(x)===top(l) && x.id!==l.id).map(x=>[score(x), x]).sort((a,b)=>b[0]-a[0] || a[1].req_to-b[1].req_to)
+    .slice(0, 4).map(a=>a[1]);
+}
 function pageLot(id){
   let l = byId(id);
   if(!l && !ARCH){   // архивный лот — из его пачки; нет там (старая сборка) — свежий архив, потом весь
@@ -2962,9 +2994,9 @@ function pageLot(id){
     <div id="xsim"></div>
     ${arch?'':'<section class="panel calcx" id="calcx"><div class="skel"></div></section>'}
     <div id="xmap"></div>
-    ${arch?'':(() => { const same = x => l.sub ? x.sub===l.sub : x.section===l.section;
-      return `<div class="sec"><div class="sec-h"><h2>Похожие лоты</h2><a href="#/${l.sub ? 'c/'+l.sub : 's/'+l.section}">Весь подраздел →</a></div>
-      <div class="grid simlots">${DATA.filter(x=>same(x)&&x.id!==l.id).slice(0,4).map(lotCard).join('')}</div></div>`; })()}
+    ${arch?'':(() => { const sim = similarLots(l);
+      return sim.length ? `<div class="sec"><div class="sec-h"><h2>Похожие лоты</h2><a href="#/${l.sub ? 'c/'+l.sub : 's/'+l.section}">Весь подраздел →</a></div>
+      <div class="grid simlots">${sim.map(lotCard).join('')}</div></div>` : ''; })()}
   </div>`;
   bindLotUser(l);
   bindLotReport(l);
@@ -3935,13 +3967,15 @@ function bindLotUser(l){
 }
 
 /* сохранённые поиски */
-const SS_KEYS = ['cat','q','region','city','pmin','pmax','dfrom','dto','plat','brand','photo','mkt'];
+const SS_KEYS = ['cat','q','region','city','pmin','pmax','ymin','ymax','amin','amax','dfrom','dto','plat','brand','photo','mkt'];
 const dRu = s => s.split('-').reverse().join('.');
 function searchTitle(p){
   const a = [], s = p.sec || p.cat, sc = scOf(p.sub);
   if(sc) a.push(scName(sc)); else if(s) a.push(secName(s)); if(p.q) a.push('«' + p.q + '»'); if(p.region) a.push(p.city ? p.region + ', ' + p.city : p.region);
   if(p.pmin || p.pmax) a.push((p.pmin ? 'от ' + nf(+p.pmin) : '') + (p.pmax ? ' до ' + nf(+p.pmax) : '') + ' BYN');
   if(p.plat) a.push(String(p.plat).split(',').join(', ')); if(p.dfrom || p.dto) a.push('торги' + (p.dfrom ? ' с ' + dRu(p.dfrom) : '') + (p.dto ? ' по ' + dRu(p.dto) : ''));
+  if(p.ymin || p.ymax) a.push((p.ymin ? 'с ' + p.ymin : '') + (p.ymax ? ' по ' + p.ymax : '') + ' г. в.');
+  if(p.amin || p.amax) a.push((p.amin ? 'от ' + p.amin : '') + (p.amax ? ' до ' + p.amax : '') + ' м²');
   if(p.photo) a.push('с фото'); if(p.mkt) a.push('с ориентиром');
   return a.join(', ') || 'Все лоты';
 }
@@ -4387,7 +4421,7 @@ async function meCal(M){
 async function meOrders(M, arg, params){
   if(arg === 'new') return meOrderForm(M, params);
   const rows = await uapi('leads?select=id,created_at,lot,lot_id,lot_name,service,status,msg&order=created_at.desc');
-  const ST = { new:['Новая','b'], work:['В работе','a'], deal:['Сделка','g'], refused:['Закрыта',''] };
+  const ST = { new:['Новая','b'], work:['В работе','a'], deal:['Готово','g'], refused:['Закрыта',''] };   // как в админке (22.10)
   M.innerHTML = `<h1>Заявки на помощь</h1>
     <p class="lede">Проверка объекта, осмотр, участие в торгах под ключ, сопровождение после победы. Специалист свяжется с вами, статус заявки меняется здесь.</p>
     <p><a class="btn pri" href="#/me/orders/new">Новая заявка</a></p>
@@ -4465,13 +4499,29 @@ async function meReport(M, id){
       ${r.lot ? `<p>Лот: <a href="#/lot/${encodeURIComponent(r.lot)}">${esc(r.lot_name || r.lot)}</a></p>` : ''}
       ${r.body ? `<div class="rbody">${esc(r.body)}</div>` : ''}
       ${r.link && /^https?:\/\//.test(r.link) ? `<p><a href="${esc(r.link)}" target="_blank" rel="noopener">Открыть материалы ↗</a></p>` : ''}
-      ${r.file_name ? `<p><button class="btn pri" type="button" id="rf">Скачать файл: ${esc(r.file_name)}${r.file_size ? ' · ' + Math.max(1, Math.round(r.file_size/1024)) + ' КБ' : ''}</button></p>` : ''}
+      ${r.file_name ? `<div class="rfiles" id="rfl"><div class="skel" style="height:44px"></div></div>` : ''}
       <p class="muted">Есть вопросы по отчёту? <a href="#/help${r.lot ? '?id=' + encodeURIComponent(r.lot) : ''}">Напишите нам</a>.</p></article>`;
+  // файлы: с 22.10 — на хостинге (/api/rf.php: проверяет по базе, что отчёт ваш), раньше — один файл в базе (report_files)
+  const box = $('#rfl'); if(!box) return;
+  const kb = n => n >= 1048576 ? (n / 1048576).toFixed(1).replace('.', ',') + ' МБ' : Math.max(1, Math.round(n / 1024)) + ' КБ';
+  const save = (blob, name) => { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href), 60000); };
+  const rfh = async () => { const h = await uhdr(); return h.Authorization ? { 'x-auth':h.Authorization.slice(7) } : h; };
+  let files = [];
+  try{ const r2 = await fetch(`/api/rf.php?a=ls&r=${r.id}`, { headers:await rfh() }); if(r2.ok) files = await r2.json(); }catch(e){}
+  if(files.length){
+    box.innerHTML = files.map((f,i)=>`<button class="btn pri" type="button" data-rf="${i}">Скачать: ${esc(f.n)} · ${kb(f.s)}</button>`).join(' ');
+    box.querySelectorAll('[data-rf]').forEach(b=>b.onclick = async () => { const f = files[+b.dataset.rf], t = b.textContent; b.disabled = true; b.textContent = 'Загрузка…';
+      try{ const x = await fetch(`/api/rf.php?a=dl&r=${r.id}&n=${encodeURIComponent(f.n)}`, { headers:await rfh() });
+        if(!x.ok) throw new Error('Файл не скачался, попробуйте ещё раз'); save(await x.blob(), f.n);
+      }catch(e){ utoast(e.message, true); } b.disabled = false; b.textContent = t; });
+    return;
+  }
+  box.innerHTML = `<button class="btn pri" type="button" id="rf">Скачать файл: ${esc(r.file_name)}${r.file_size ? ' · ' + kb(r.file_size) : ''}</button>`;
   const b = $('#rf');
-  if(b) b.onclick = async () => { b.disabled = true;
+  b.onclick = async () => { b.disabled = true;
     try{ const [f] = await uapi(`report_files?report_id=eq.${r.id}&select=data`); if(!f) throw new Error('файл не найден');
       const bin = atob(f.data), u8 = new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u8[i] = bin.charCodeAt(i);
-      const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([u8], { type:r.file_type || 'application/octet-stream' })); a.download = r.file_name; a.click();
+      save(new Blob([u8], { type:r.file_type || 'application/octet-stream' }), r.file_name);
     }catch(e){ utoast(e.message, true); } b.disabled = false; };
 }
 
@@ -4512,7 +4562,6 @@ async function meProfile(M){
         <div class="fg"><label for="p-phone">Телефон</label><input id="p-phone" type="tel" value="${esc(ME.phone||'')}" placeholder="+375 (29) 000-00-00"></div>
         <div class="fg"><label for="p-mail">Email</label><input id="p-mail" type="email" value="${esc(ME.email||'')}"${ME.auth?' disabled':''}>${ME.auth?'<div class="fhint">Почта - логин кабинета, здесь не меняется</div>':''}</div>
         <div class="fg"><label for="p-tg">Telegram</label><input id="p-tg" value="${esc(ME.telegram||'')}" placeholder="@username"></div></div>
-      ${ME.purpose ? `<p class="muted">Для чего вам МониТорг: ${esc(ME.purpose)}${ME.purpose_note ? ' - ' + esc(ME.purpose_note) : ''}</p>` : ''}
       <button class="btn pri" type="button" id="p-save">Сохранить</button>`}</div>
     <div class="panel me-p"><h2>Уведомления</h2><p class="muted" style="margin-top:0">Приходят в личный кабинет. Доставка на почту и в Telegram в разработке.</p>
       ${NT.map(([k,t])=>`<label class="chk"><input type="checkbox" data-nt="${k}"${on(k)?' checked':''}${guest?' disabled':''}> ${t}</label>`).join('')}
@@ -4524,12 +4573,31 @@ async function meProfile(M){
       <div class="fg"><label for="p-old">Текущий пароль</label><input id="p-old" type="password" autocomplete="current-password"></div>
       <div class="fg"><label for="p-new">Новый пароль</label><input id="p-new" type="password" autocomplete="new-password"></div>
       ${ME.auth ? '<div class="fg"><label for="p-new2">Новый пароль ещё раз</label><input id="p-new2" type="password" autocomplete="new-password"></div>' : ''}</div>
-      ${ME.auth ? `<p class="muted">Забыли текущий? <a href="#" id="p-forgot">Сменить пароль по коду из письма</a></p>` : ''}
+      ${ME.auth ? `<p class="muted"><a href="#" id="p-forgot">Забыли пароль?</a> Пришлём код на почту и смените пароль, не выходя из кабинета.</p>` : ''}
       <button class="btn" type="button" id="p-pw">Сменить пароль</button>`}</div>`;
   eyes(M);
   if($('#p-save')) $('#p-save').onclick = async () => { try{ await urpc('user_update', { p:Object.assign({ name:$('#p-name').value, phone:$('#p-phone').value, telegram:$('#p-tg').value }, ME.auth ? {} : { email:$('#p-mail').value }) }); await uload(); utoast('Сохранено'); }catch(e){ utoast(e.message, true); } };
   if($('#p-reg')) $('#p-reg').onclick = async e => { e.preventDefault(); await ulogout(); nav('#/login?mode=up'); };
-  if($('#p-forgot')) $('#p-forgot').onclick = async e => { e.preventDefault(); const em = ME.email; await ulogout(); nav('#/login?mode=reset'); setTimeout(()=>{ const i = $('#f-mail'); if(i) i.value = em; }, 50); };
+  // забыли пароль: код на почту и новый пароль — прямо здесь, без выхода из кабинета (22.10: выкидывало на страницу входа)
+  if($('#p-forgot')) $('#p-forgot').onclick = async e => { e.preventDefault();
+    const box = $('#p-pw').closest('.panel'), em = ME.email;
+    try{ await uauth('recover', { email:em }); }catch(err){ utoast(err.message, true); return; }
+    box.innerHTML = `<h2>Пароль</h2><p class="muted" style="margin-top:0">Мы отправили код на ${esc(em)}. Введите его и новый пароль.</p><div class="me-form">
+      <div class="fg"><label for="r-code">Код из письма</label><input id="r-code" inputmode="numeric" autocomplete="one-time-code"></div>
+      <div class="fg"><label for="r-new">Новый пароль</label><input id="r-new" type="password" autocomplete="new-password"></div>
+      <div class="fg"><label for="r-new2">Новый пароль ещё раз</label><input id="r-new2" type="password" autocomplete="new-password"></div></div>
+      <button class="btn pri" type="button" id="r-go">Сменить пароль</button>`;
+    eyes(box);
+    $('#r-go').onclick = async () => { try{
+      const code = $('#r-code').value.replace(/\s/g,''), n = $('#r-new').value;
+      if(!/^\d{6,10}$/.test(code)) throw new Error('Введите код из письма');
+      if(n.length < 6) throw new Error('Новый пароль - минимум 6 символов');
+      if(n !== $('#r-new2').value) throw new Error('Новые пароли не совпадают');
+      const j = await uauth('verify', { type:'recovery', email:em, token:code });
+      usess(j); await uauth('user', { password:n }, { method:'PUT', tok:j.access_token });
+      utoast('Пароль изменён'); meProfile(M);
+    }catch(err){ utoast(err.message, true); } };
+  };
   M.querySelectorAll('[data-nt]').forEach(i=>i.onchange = async () => { const n = {}; M.querySelectorAll('[data-nt]').forEach(x=>{ if(!x.checked) n[x.dataset.nt] = false; });
     try{ await urpc('user_update', { p:{ notify:n } }); ME.notify = n; utoast('Сохранено'); }catch(e){ utoast(e.message, true); } });
   if($('#p-news')) $('#p-news').onchange = async () => { const on = $('#p-news').checked;
