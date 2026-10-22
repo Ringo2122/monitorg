@@ -1,11 +1,5 @@
 #!/usr/bin/env ruby
 # encoding: utf-8
-#
-# После сборки: копия каталога — в базу админки, отчёт о запуске — туда же.
-#   RUN_ID   строка отчёта, которую создал gate.rb
-#   JOB_OK   true/false — как прошли предыдущие шаги
-#   RUN_KIND, RUN_AT — запуск без gate.rb (ночной «архив площадок за год», archive.yml): вид и время начала
-# Запускается всегда, даже если сборка упала, — чтобы в админке было видно, что пошло не так.
 require 'json'
 require 'time'
 require_relative 'store'
@@ -19,9 +13,8 @@ mirror = read.('mirror.json')
 if mirror && ENV['JOB_OK'] != 'false'
   t0 = mirror.first && mirror.first['synced']
   Sb.upsert('lots', mirror)
-  Sb.delete('lots', "synced=lt.#{t0}") if t0   # лоты, удалённые из памяти робота
+  Sb.delete('lots', "synced=lt.#{t0}") if t0
   puts "в базу админки: #{mirror.size} лотов"
-  # снимок дня для динамики в аналитике: рынок без дублей и скрытых, по площадкам и разделам
   act = mirror.select { |l| l['status'] == 'active' && !%w[dup hidden].include?(l['hidden_why']) }
   cnt = ->(k) { act.group_by { |l| l[k] }.map { |g, v| [g, v.size] }.to_h }
   val = ->(k) { act.group_by { |l| l[k] }.map { |g, v| [g, v.sum { |l| l['price'].to_f }.round] }.to_h }
@@ -29,13 +22,10 @@ if mirror && ENV['JOB_OK'] != 'false'
                         'stats' => { 'active' => act.size, 'published' => mirror.count { |l| l['status'] == 'active' && l['published'] },
                                      'value' => act.sum { |l| l['price'].to_f }.round, 'by_platform' => cnt.('platform'),
                                      'by_section' => cnt.('section'), 'value_by_section' => val.('section') } }], 'day')
-  # итоги завершённых торгов — в постоянную таблицу для аналитики продаж
   if (sales = read.('sales.json')) && sales.any?
     Sb.upsert('sales', sales.map { |x| x.merge('updated_at' => Time.now.utc.iso8601) }, 'key,at')
     puts "итогов торгов в аналитике: #{sales.size}"
   end
-  # файл «Аналитики» уже на сайте (выкладка — до этого шага): с этой минуты кабинет и админка берут его;
-  # храним три последних — браузер пробует новый, при сбое — предыдущий, потом — данные из базы (statsfile.rb)
   if (sf = read.('stats_file.json'))
     begin
       Sb.upsert('stats_file', [{ 'name' => sf['name'], 'key' => sf['key'], 'at' => Time.now.utc.iso8601,
@@ -46,7 +36,6 @@ if mirror && ENV['JOB_OK'] != 'false'
       warn "аналитика: имя файла не записано (#{e.message}) — останется прежний"
     end
   end
-  # личный кабинет: новые лоты по сохранённым поискам и напоминания о сроках — сразу после обновления каталога
   begin
     n = Sb.req('post', 'rpc/cab_tick', {})
     puts "уведомлений в кабинеты: #{n}"
@@ -55,15 +44,12 @@ if mirror && ENV['JOB_OK'] != 'false'
   end
 end
 
-# журнал ошибок у посетителей хранится 30 дней (политика обработки ПД, п. 3.8). report_error чистит так же, но только
-# когда приходит новая ошибка — без ошибок старые записи лежали бы сколько угодно
 begin
   Sb.delete('client_errors', "at=lt.#{(Time.now.utc - 30 * 86_400).strftime('%Y-%m-%dT%H:%M:%SZ')}")
 rescue StandardError => e
   warn "журнал ошибок сайта не почищен: #{e.message}"
 end
 
-# отчёт: итоги обхода по площадкам, итоги сборки, строки журнала с ошибками
 log = File.exist?(File.join(TMP, 'update.log')) ? File.read(File.join(TMP, 'update.log'), encoding: 'UTF-8') : ''
 bad = log.lines.select { |s| s =~ /в списке 0\b|ошибк|error|не разобран|не прочитан|не ответил|недоступ|подозрительно|aborted/i }
 tail = (bad.last(40) + ["— последние строки журнала —\n"] + log.lines.last(25)).join
@@ -71,9 +57,6 @@ stats = { 'update' => read.('run.json'), 'build' => read.('build.json') }.reject
 row = { 'finished_at' => Time.now.utc.iso8601, 'ok' => ENV['JOB_OK'] != 'false', 'stats' => stats, 'log' => tail[0, 20_000] }
 if ENV['RUN_ID'].to_s =~ /\A\d+\z/
   Sb.patch('runs', "id=eq.#{ENV['RUN_ID']}", row)
-  # Запуски идут строго по одному (concurrency «site»); ожидающий в очереди GitHub отменяет, когда встаёт следующий, —
-  # до отчёта он не доходит, и запись «начат» висела бы вечно: сигнализация — «прогон завис», gate.rb — «умер, повторить».
-  # Всё более раннее без отметки об окончании уже не выполнится — закрываем как отменённое (29.09: ручной запуск 16:24)
   Sb.patch('runs', "finished_at=is.null&id=lt.#{ENV['RUN_ID']}",
            { 'kind' => 'cancelled', 'finished_at' => Time.now.utc.iso8601, 'ok' => nil,
              'log' => 'Не выполнялся: ждал в очереди, и GitHub отменил его, когда встал следующий запуск' })
@@ -83,7 +66,6 @@ else
                        .merge(ENV['RUN_AT'] ? { 'at' => ENV['RUN_AT'] } : {}))
 end
 
-# старые отчёты не копим
 cut = (Time.now - 60 * 86_400).utc.iso8601
 Sb.delete('runs', "at=lt.#{cut}")
 Sb.delete('bot_runs', "at=lt.#{cut}")

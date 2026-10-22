@@ -1,10 +1,4 @@
 # encoding: utf-8
-#
-# Память сайта. Живёт в репозитории, её дописывает каждый прогон обновления.
-#   data/lots.json     короткие записи всех лотов — активных и архивных, по строке на лот
-#   data/det/<key>.json подробности лота (секции «ключ — значение»), пишутся один раз
-#   data/ph/<key>.jpg   фото, 400 px (у лотов архива за год — 320 px: только для карточки, backfill.rb)
-# Строка на лот — чтобы в истории репозитория было видно, что изменилось за прогон.
 require 'json'
 require 'fileutils'
 require 'digest'
@@ -17,8 +11,6 @@ module Store
   PH   = File.join(DATA, 'ph')
   W    = 400
   Q    = 48
-  # заглушки «нет фото», которые площадка отдаёт как обычное фото (et.butb.by — серый фотоаппарат, 13.10: 158 лотов):
-  # хеши файла площадки и нашей сжатой копии. Такое фото не сохраняем — на сайте будет наша заглушка раздела
   NOPHOTO = %w[686379d8aa82afee2005f80e1e4102e0 5c625537dab8d1883b8975ea110f8323 e5832167f583dce4ac156d50bdf19078].freeze
 
   module_function
@@ -37,8 +29,6 @@ module Store
     File.write(LOTS, "[\n#{body}\n]\n")
   end
 
-  # имя файла лота — не длиннее 255 байт: у expert-torgi ключ — адрес лота целиком (13.10 архив упал на «File name too long»);
-  # короче 240 — как было, длиннее — начало и хеш
   def fname(key)
     key.bytesize > 240 ? "#{key.byteslice(0, 200).scrub('')}-#{Digest::MD5.hexdigest(key)[0, 12]}" : key
   end
@@ -60,9 +50,6 @@ module Store
     File.write(det_path(key), JSON.generate(secs))
   end
 
-  # На Mac есть sips, на сервере GitHub — ImageMagick. ImageMagick определяет формат по расширению,
-  # а «.raw» для него — отдельный формат «сырых пикселей»: так 24.09 все новые фото молча не сохранились.
-  # Поэтому формат узнаём по первым байтам файла и передаём явно: «jpg:файл».
   def sniff(path)
     head = File.binread(path, 12).to_s
     return 'jpg' if head.start_with?("\xFF\xD8".b)
@@ -89,7 +76,7 @@ module Store
     return true if File.exist?(dst)
     raw = dst + '.raw'
     urls.compact.uniq.each do |u|
-      next unless u.to_s =~ %r{\Ahttps?://}i   # только http(s): адрес фото берётся со страницы площадки
+      next unless u.to_s =~ %r{\Ahttps?://}i
       system('curl', '-sS', '-L', '--proto', '=http,https', '--proto-redir', '=http,https', '--max-filesize', '15000000',
              '-m', '40', '-A', ua, '-o', raw, u, out: File::NULL, err: File::NULL)
       next unless File.exist?(raw) && File.size(raw) > 1000 && !nophoto?(raw)

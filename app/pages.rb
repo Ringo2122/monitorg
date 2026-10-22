@@ -1,13 +1,4 @@
 # encoding: utf-8
-#
-# SEO-страницы (21.10.2026, этап 1 — готовые HTML-страницы; правила — SEO/SEO-разверстка-2026.md):
-#   /<раздел>/ и /<раздел>/<подраздел>/ (+ /2/, /3/ … по 40 лотов), /<раздел>/<подраздел>/<область или город>/,
-#   /transport/<подраздел>/<марка>/, /lot/<название-латиницей>-<номер>/, /ploshchadki/<площадка>/, sitemap.xml.
-# Текст и ссылки — в самом HTML: поисковик видит их без скриптов. Каталог с фильтрами, кабинет и калькуляторы пока
-# живут в приложении на главной (адреса с #); перевод приложения на эти адреса — этап 3.
-# Пороги (п. 4): лоты за 12 месяцев (активные + архив); мало — страницу не делаем или закрываем от поиска (noindex).
-# ФИО должников-физлиц — никогда в Title, Description и разметке (на странице лота — как в приложении).
-# SEO_LIVE=1 — сайт открыт поисковикам; без него все страницы noindex (как сейчас весь сайт до запуска).
 require 'json'
 require 'cgi'
 require 'fileutils'
@@ -19,7 +10,7 @@ module Pages
 
   SITE = 'https://monitorg.by'
   PER = 40
-  ARCH_DAYS = 548                 # архив открыт поисковикам 18 месяцев — столько он и хранится (решение Артёма 21.10)
+  ARCH_DAYS = 548
   YEAR = 365 * 86_400
 
   REG = { 'г. Минск' => ['minsk', 'в Минске'], 'Минская область' => ['minskaya-oblast', 'в Минской области'],
@@ -28,7 +19,6 @@ module Pages
           'Гомельская область' => ['gomelskaya-oblast', 'в Гомельской области'],
           'Гродненская область' => ['grodnenskaya-oblast', 'в Гродненской области'],
           'Могилевская область' => ['mogilevskaya-oblast', 'в Могилёвской области'] }.freeze
-  # город или район (regions.rb PLACES) → «в …»: склонять автоматически нельзя («в Гродно», «в Мозыре»)
   CITY_IN = {
     'Минский район' => 'в Минском районе', 'Борисов и район' => 'в Борисове и районе', 'Солигорск и район' => 'в Солигорске и районе',
     'Молодечно и район' => 'в Молодечно и районе', 'Жодино' => 'в Жодино', 'Смолевичский район' => 'в Смолевичском районе',
@@ -52,7 +42,6 @@ module Pages
                 'torgi.gov.by' => 'Единая система электронных торгов', 'etpvit.by' => 'ETPVIT', 'expert-torgi.by' => 'EXPERT ТОРГИ',
                 'realtorgi.by' => 'Реалторги', 'iintorgi.by' => 'ИИН Торги' }.freeze
   BRAND_SUBS = %w[legkovye gruzovye avtobusy].freeze
-  # [создаём от, открыт поиску: активных от, или всего от] — п. 4 разверстки
   TH = { reg: [10, 3, 20], city: [30, 3, 40], brand: [20, 2, 30] }.freeze
   RES = { 'sold' => 'Продан', 'single' => 'Продан единственному участнику', 'failed' => 'Торги не состоялись',
           'cancelled' => 'Торги отменены' }.freeze
@@ -88,14 +77,10 @@ module Pages
     Time.at(ts.to_i).getlocal('+03:00').strftime('%Y-%m-%d')
   end
 
-  # ── имена ──
-  # ФИО физлица (и капслоком, и с инициалами) — никогда в Title, H1, Description и разметке (п. 6)
   FIO = /\b[А-ЯЁ][а-яё]+(?:-[А-ЯЁ][а-яё]+)?\s+(?:[А-ЯЁ][а-яё]+\s+[А-ЯЁ][а-яё]+(?:вич|вна|ична|ич)\b|[А-ЯЁ]\.\s?[А-ЯЁ]\.)|
          \b[А-ЯЁ]{2,}(?:-[А-ЯЁ]{2,})?\s+[А-ЯЁ]{2,}\s+[А-ЯЁ]{2,}(?:ВИЧ|ВНА|ИЧНА|ИЧ)\b/x.freeze
   PLATE = /\b\d{4}\s?[А-ЯA-Z]{2}-?\d\b|\b[А-ЯA-Z]{2}\s?\d{4}-?\d\b|\b[А-ЯA-Z]{2}-?\d\s?\d{4}\b/.freeze
 
-  # Очистка (п. 6): без VIN, номерных знаков, инвентарных и кадастровых номеров, номеров кузова, «(Унитарное предприятие …)»,
-  # «Лот №», ФИО, капслока и точки в конце. Номера остаются в тексте страницы — по ним ищут.
   def clean(name)
     t = name.to_s.gsub(/\s+/, ' ')
     t = t.sub(/\AЛот\s*№\s*\d+\.?\s*/i, '')
@@ -103,17 +88,16 @@ module Pages
     t = t.gsub(/\(\s*(?:наименование|назначение)\s*[-–:]\s*([^()]+)\)/i) { " (#{$1.strip})" }
     t = t.gsub(/[,;]?\s*(?:идентиф\S*\s+номер|vin|вин)\s*(?:\(vin\))?\s*[:№#-]?\s*[A-HJ-NPR-Z0-9]{8,17}/i, '')
     t = t.gsub(/[,;]?\s*\(?(?:vin|вин)\)?\s*[:№]?\s*[A-HJ-NPR-Z0-9]{11,17}\b/i, '')
-    t = t.gsub(/[,;(]*\s*\b(?=[A-HJ-NPR-Z0-9]*\d)(?=[A-HJ-NPR-Z0-9]*[A-HJ-NPR-Z])[A-HJ-NPR-Z0-9]{17}\b\)?/, '')   # VIN без подписи
+    t = t.gsub(/[,;(]*\s*\b(?=[A-HJ-NPR-Z0-9]*\d)(?=[A-HJ-NPR-Z0-9]*[A-HJ-NPR-Z])[A-HJ-NPR-Z0-9]{17}\b\)?/, '')
     t = t.gsub(/[,;]?\s*(?:рег(?:истрационный)?\.?\s*(?:знак|номер|№)|р\/з|г\.?\s*н\.)\s*[:№]?\s*/i, ' ')
     t = t.gsub(/[,;]?\s*(?:#{PLATE.source})/, '')
     t = t.gsub(/(?:\s+с)?[,;]?\s*(?:инв(?:ентарный)?\.?\s*(?:№|номер)?|№\s*кузова(?:\/рамы)?|кузов(?:,?\s*рама)?\s*(?:\(рама\))?\s*№|кадастровый\s+номер)\s*[:№]?\s*[\w\/.-]+/i, '')
-    t = t.gsub(/\s+[А-ЯA-Z]{2}-\d\s+\d{4}\b/, '')   # «СЕ-4 2620» — тракторный номер
+    t = t.gsub(/\s+[А-ЯA-Z]{2}-\d\s+\d{4}\b/, '')
     t = t.gsub(FIO, 'физическое лицо')
     t = t.gsub(/\n.*/m, '').gsub(/\s+([,.;:)])/, '\1').gsub(/[,;:\s(]+\z/, '').gsub(/\(\s*\)/, '').gsub(/\s{2,}/, ' ').strip
-    t = t.sub(/(?<![\s.][а-яa-z])\.\z/i, '')   # точку в конце убираем, «г.в.» оставляем
+    t = t.sub(/(?<![\s.][а-яa-z])\.\z/i, '')
     letters = t.scan(/[А-ЯЁA-Zа-яёa-z]/)
     if letters.size > 6 && letters.count { |c| c =~ /[А-ЯЁA-Z]/ } > letters.size * 0.8
-      # капслок: русские слова — строчными (кроме первого), латиница и слова с цифрами — как есть (E 220, 2ПТС-4)
       t = t.split(/(\s+)/).map { |w| w =~ /\d/ || w !~ /[А-ЯЁ]/ ? w : w.downcase }.join
       t = t[0].upcase + t[1..-1].to_s
     end
@@ -131,12 +115,10 @@ module Pages
     l['location'].to_s[/(?:\A|[\s,])(?:г\.|город|аг\.|д\.|гп|г\.\s?п\.|п\.)\s*([А-ЯЁ][а-яё]+(?:[- ][А-ЯЁ][а-яё]+)?)/, 1]
   end
 
-  # Короткое имя (п. 6): легковые — «Марка Модель, год»; недвижимость и аренда — «Вид площадь м²»; остальное — начало названия
   def short(l, rows)
     t = clean(l['name'])
     top, sub = l['sub'].to_s.split('/')
     if l['sub'] == 'transport/legkovye' && l['brand'] && l['brand'] != 'Другие'
-      # модель — из строки «Модель» карточки, иначе — слова после марки в названии или в «Марка (модель)»
       yr = ((rows.find { |k, _| k.to_s =~ /\AГод/ } || [])[1].to_s[/(19|20)\d\d/] || l['name'].to_s[/\b(19[89]\d|20[0-2]\d)\b/])
       model = (rows.find { |k, _| k.to_s =~ /\AМодель/ } || [])[1].to_s.strip
       if model.empty? || model.size > 30
@@ -150,12 +132,11 @@ module Pages
       model = model.sub(/\A#{Regexp.escape(l['brand'])}\s*/i, '').split.map { |w| w =~ /\A[A-ZА-ЯЁ]{3,}\z/ ? w.capitalize : w }.join(' ')
       return [l['brand'].sub(' (ВАЗ)', ''), model].reject(&:empty?).join(' ') + (yr ? ", #{yr}" : '')
     elsif sub == 'doli' && (fr = t[/\A\s*(\d+\s*\/\s*\d+)/, 1])
-      # «1/2 доли: жилой дом, Ворняны»
       obj = t[/собственности\s+на\s+([^,;(:]+?)(?=\s+(?:с\s+инв|площадью|общей|расположен|по адресу|в\s+(?:аг|д|г|гп|п)\.)|[,;(:]|\z)/i, 1].to_s.strip
       t = ["#{fr.delete(' ')} доли#{obj.empty? ? '' : " на #{obj}"}", settlement(l)].compact.join(', ')
     elsif %w[nedvizhimost arenda].include?(top)
       txt = "#{l['name']} #{rows.map { |r| r.join(' ') }.join(' ')}"
-      kind = t[/\(([^()]{3,40})\)/, 1] if t =~ /\A(?:капитальн|изолированн|незаверш|объект)/i   # «Капитальное строение (коровник)» → коровник
+      kind = t[/\(([^()]{3,40})\)/, 1] if t =~ /\A(?:капитальн|изолированн|незаверш|объект)/i
       kind ||= t.sub(/\A(?:(?:продажа|аукцион)\s+(?:на\s+)?)?(?:прав[оа]\s+(?:на\s+)?(?:заключени[ея]\s+)?(?:договора\s+)?)?аренд[аыу]\s+/i, '')[/\A[^,;(]+?(?=\s+(?:площадью|общей|пл\.|расположен|по адресу|в\s+(?:аг|д|г|гп|п)\.|с\s+инв|№)|[,;(]|\z)/i].to_s
       kind = kind.strip.split.first(5).join(' ')
       kind = kind[0].upcase + kind[1..-1].to_s unless kind.empty?
@@ -172,7 +153,6 @@ module Pages
     settlement(l) || l['region'].to_s.sub(' область', ' обл.')
   end
 
-  # Title лота: «{Короткое имя}, {город} — {итог}» не длиннее ~65 знаков: короче — за счёт имени, по границе слова
   def lot_title(sh, tn, tail)
     tn = nil if tn.to_s.empty? || sh.include?(tn.to_s)
     t = "#{sh}#{tn ? ", #{tn}" : ''} — #{tail}"
@@ -183,7 +163,6 @@ module Pages
     "#{sh[0, room].sub(/\s+\S*\z/, '').sub(/[\s,;:(]+\z/, '')} — #{tail}"
   end
 
-  # номер лота в адресе; у части площадок номер — длинное название (expert-torgi) — тогда приставка и короткий отпечаток
   def idpart(id)
     id.size <= 24 ? slug(id) : "#{id[/\A[a-z0-9]+/]}-#{Digest::MD5.hexdigest(id)[0, 8]}"
   end
@@ -192,9 +171,6 @@ module Pages
     @lp[l['id']]
   end
 
-  # ── обвязка страницы ──
-  # Оболочка — та же, что у главной (build.rb): шапка, подвал, плашка cookie, приложение (/assets/app.js) с данными.
-  # Приложение запускается поверх готового текста и рисует страницу по маршруту из <meta name="mt-route"> (этап 3, 22.10)
   CSS = ".pager{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0}.pager a,.pager b{padding:6px 12px;border:1px solid var(--hair);border-radius:8px}" \
         ".pager b{background:var(--brand);color:#fff;border-color:var(--brand)}.seo-links ul{display:flex;flex-wrap:wrap;gap:8px 18px;padding:0;list-style:none}" \
         ".seo-links small{color:var(--ink-3)}.panel.res{padding:14px 16px;margin-top:15px}.panel.res .sub{color:var(--ink-2);font-size:13px;margin-top:4px}\n"
@@ -216,7 +192,6 @@ module Pages
     @n += 1
   end
 
-  # ── карточка лота в списке (как lotCard в приложении) ──
   def card(l)
     arch = l['status'] == 'archive'
     img = l['photo'] ? %(<img src="/ph/#{h(l['photo'])}.jpg" loading="lazy" decoding="async" alt="#{h(@short[l['id']])}">) :
@@ -236,7 +211,6 @@ module Pages
     HTML
   end
 
-  # ── живые цифры раздела (п. 7.2) ──
   def facts(act, done)
     s = []
     if act.any?
@@ -267,12 +241,10 @@ module Pages
     plural(n, a, b, c)
   end
 
-  # «21 лот», «0 лотов» — для описаний
   def lots_n(n)
     "#{nf(n)} #{plural(n, 'лот', 'лота', 'лотов')}"
   end
 
-  # ── страница списка ──
   def list_page(path, title, h1, desc, crumbs_parts, act, done, links, app_link, index)
     cr, ld_b = crumbs(crumbs_parts)
     pages = [(act.size + PER - 1) / PER, 1].max
@@ -301,7 +273,6 @@ module Pages
     t.size > 60 ? t.sub(' | МониТорг', '') : t
   end
 
-  # ── страница лота ──
   def lot_meta(l)
     arch = l['status'] == 'archive'
     sh = @short[l['id']]
@@ -394,20 +365,18 @@ module Pages
     offer['priceValidUntil'] = iso(l['req_to']) unless arch
     offer['price'] = l['price'].to_f.round(2) if l['price'].to_f.positive?
     prod = { '@context' => 'https://schema.org', '@type' => 'Product', 'name' => clean(l['name'])[0, 150], 'sku' => l['id'] }
-    prod['offers'] = offer if offer['price']   # цены нет — без предложения: пустая цена — ошибка разметки
+    prod['offers'] = offer if offer['price']
     prod['image'] = "#{SITE}/ph/#{l['photo']}.jpg" if l['photo']
     prod['brand'] = { '@type' => 'Brand', 'name' => l['brand'] } if l['brand'] && l['brand'] != 'Другие'
     open = !arch || l['closed'].to_i > @now - ARCH_DAYS * 86_400
     write(lot_path(l), title, desc, body, [ld_b, prod], open, "/lot/#{l['id']}")
   end
 
-  # Имена и адреса страниц лотов (вызывается сборкой до записи данных приложения: у лота — поле u, «имя-номер»)
   def prepare(active:, arch:, details:, now:)
     @short = {}
     @lp = {}
     (active + arch.select { |l| l['closed'].to_i > now - ARCH_DAYS * 86_400 }).each do |l|
       rows = details.call(l['key']).flat_map { |s| s['rows'] || [] }
-      # марка у архивных — тоже (в сборке она пока только у активных): короткое имя и страницы марок
       l['brand'] ||= Brands.of(l, rows) if BRAND_SUBS.include?(l['sub'].to_s.split('/')[1]) && l['sub'].to_s.start_with?('transport/')
       sh = short(l, rows)
       @short[l['id']] = sh
@@ -417,8 +386,6 @@ module Pages
     @lp
   end
 
-  # ── всё вместе ──
-  # out — папка сайта; active, arch — показанные лоты; details — ->(key) { [{h, rows}] }; tree — Cats.tree
   def run(out:, active:, arch:, details:, tree:, now:, shell:, live: false)
     @shell = shell
     @out = out
@@ -442,7 +409,6 @@ module Pages
     @act_by_sub = active.group_by { |l| l['sub'] }
     @pages_of_scope = {}
 
-    # срезы подраздела: области, города, марки — сначала решаем, какие страницы будут (нужны для ссылок)
     plans = []
     @tops.each do |t|
       t[:subs].each do |s|
@@ -482,7 +448,6 @@ module Pages
 
     split = ->(ls) { [ls.select { |l| l['status'] == 'active' }.sort_by { |l| l['req_to'].to_i }, ls.reject { |l| l['status'] == 'active' }] }
 
-    # разделы и подразделы
     @tops.each do |t|
       tl = all.select { |l| l['sub'].to_s.start_with?("#{t[:k]}/") }
       act, done = split.(tl)
@@ -509,7 +474,6 @@ module Pages
       end
     end
 
-    # срезы
     plans.each do |kind, sp, name, sl, inn, ls, index|
       t = @tops.find { |x| sp.start_with?("#{x[:k]}/") }
       sn = sp.start_with?('arenda/') ? "Право аренды: #{@subname[sp].downcase}" : @subname[sp]
@@ -531,7 +495,6 @@ module Pages
       end
     end
 
-    # площадки
     all.group_by { |l| l['platform'] }.each do |pl, ls|
       act, done = split.(ls)
       secs = act.group_by { |l| l['sub'].to_s.split('/').first }.map { |k, v| [(@tops.find { |t| t[:k] == k } || {})[:n], v.size] }.select(&:first)
@@ -541,17 +504,14 @@ module Pages
                 [['Площадки', nil], [nm, nil]], act, done, [], "/#/catalog?plat=#{CGI.escape(pl)}", true)
     end
 
-    # лоты: одинаковый заголовок у разных лотов (одинаковые гаражи, машины одной модели) — дописываем номер лота
     @meta = all.to_h { |l| [l['id'], lot_meta(l)] }
     art = all.to_h { |l| [l['id'], l['art']] }
     dup = @meta.values.group_by(&:first).select { |_, v| v.size > 1 }.keys.to_h { |t| [t, true] }
     @meta.each { |id, m| m[0] = m[0].sub(" — #{m[2]}", ", лот № #{art[id]} — #{m[2]}") if dup[m[0]] }
-    # у части площадок № лота общий для всего аукциона (БУТБ) — тогда наш номер
     dup = @meta.values.group_by(&:first).select { |_, v| v.size > 1 }.keys.to_h { |t| [t, true] }
     @meta.each { |id, m| m[0] = m[0].sub(/, лот № [^—]+ — /, ", #{id} — ") if dup[m[0]] }
     all.each { |l| lot_page(l) }
 
-    # карта сайта: разделы и срезы отдельно, лоты — частями до 50 000
     lots_sm, other = @sitemap.partition { |p, _| p.start_with?('/lot/') }
     files = { 'sitemap-pages.xml' => other }
     lots_sm.each_slice(45_000).with_index { |sl, i| files["sitemap-lots-#{i + 1}.xml"] = sl }
@@ -561,7 +521,6 @@ module Pages
     end
     File.write(File.join(out, 'sitemap.xml'), %(<?xml version="1.0" encoding="UTF-8"?>\n<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n) +
       files.keys.map { |f| "<sitemap><loc>#{SITE}/#{f}</loc><lastmod>#{iso(now)}</lastmod></sitemap>" }.join("\n") + "\n</sitemapindex>\n")
-    # адреса лотов для перехода со старых ссылок (#/lot/<id>) — приложение на главной отправит на новую страницу
     File.write(File.join(out, 'assets', 'lot-urls.json'), JSON.generate(@lp))
     { pages: @n, indexed: @sitemap.size, lots: all.size, slices: plans.size }
   end

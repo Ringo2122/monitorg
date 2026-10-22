@@ -1,14 +1,5 @@
 #!/usr/bin/env ruby
 # encoding: utf-8
-#
-# «Пора ли работать?» GitHub запускает робота каждые 10 минут; здесь решаем, что делать:
-#   collect — обойти площадки и пересобрать сайт: наступил час из настройки «hours» (по умолчанию 11 и 18)
-#             и после него обхода ещё не было, либо в админке нажали «Обновить с площадок»
-#   build   — только пересобрать сайт: в админке нажали «Опубликовать изменения»
-#   results — проверить итоги завершившихся торгов и пересобрать сайт: каждый час с 8 до 22 между обходами
-#             (без обхода площадок, 2–3 минуты) — итог появляется у нас в течение часа после публикации на площадке
-# Ручной запуск и правка кода — всегда сборка. Решение и номер запуска уходят в $GITHUB_OUTPUT,
-# а в базе появляется строка отчёта, которую потом дополнит sync.rb.
 require 'time'
 require_relative 'sb'
 
@@ -39,7 +30,6 @@ if Sb.on?
     last_any = Sb.get('runs?select=at&order=at.desc&limit=1').first
     lc = last_c ? Time.parse(last_c['at']) : Time.at(0)
     la = last_any ? Time.parse(last_any['at']) : Time.at(0)
-    # запуск начался, но так и не отчитался за 90 минут — считаем, что он умер, и повторяем
     dead = last_c && last_c['finished_at'].nil? && now - lc > 90 * 60
     req = st['publish_req'] || {}
     asked = req['at'].to_i > la.to_i
@@ -64,7 +54,6 @@ if Sb.on?
   rescue StandardError => e
     warn "база админки недоступна: #{e.message}"
     Sb.instance_variable_set(:@settings, nil)
-    # без базы — старое расписание
     collect = ev == 'schedule' ? [11, 18].include?(now.hour) && now.min < 10 : ENV['INPUT_COLLECT'] == 'true'
     build = collect || ev != 'schedule'
   end

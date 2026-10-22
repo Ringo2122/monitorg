@@ -1,10 +1,5 @@
 #!/usr/bin/env ruby
 # encoding: utf-8
-# Рыночный ориентир для недвижимости: сравнение по ТИПУ объекта и МЕСТУ — город, а для деревень район,
-# не область (20.10.2026: по области квартира в Слуцке сравнивалась с пригородом Минска — ориентир на треть выше).
-# Источники: Kufar (поиск по категории и коду города/района, app/kufar_areas.json) и realt.by
-# (страницы каталога области, по правилам сайта для роботов — только адреса без фильтров и страницы до 10-й;
-# отбор по городу/району — у нас). Где у обеих сторон известна площадь, считаем цену за квадратный метр.
 require 'json'
 require 'shellwords'
 require 'erb'
@@ -14,13 +9,9 @@ Encoding.default_internal = Encoding::UTF_8
 UA    = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/140.0 Safari/537.36'
 DIR   = File.dirname(File.expand_path(__FILE__))
 MIN_N = 4
-VER   = 2            # версия правил: ориентиры старой версии пересчитываем
-BUDGET = (ENV["MR_BUDGET"] || 8 * 60).to_i   # секунд на прогон — остальное доделает следующий
+VER   = 2
+BUDGET = (ENV["MR_BUDGET"] || 8 * 60).to_i
 
-# Типы, у которых есть сопоставимый рынок частных объявлений.
-# Склады, производства и имущественные комплексы сюда не входят осознанно:
-# таких объектов в открытой продаже почти нет, ориентир вышел бы выдуманным.
-# kufar — категория Kufar, realt — разделы realt.by, term — слово для ссылки «похожие предложения».
 TYPES = {
   'Гаражи'                    => { kufar: 1030, realt: %w[garage],          term: 'гараж' },
   'Машиноместа'               => { kufar: 1030, realt: %w[garage],          term: 'машиноместо' },
@@ -30,7 +21,6 @@ TYPES = {
   'Коммерческая недвижимость' => { kufar: 1050, realt: %w[offices shops],   term: 'помещение' }
 }.freeze
 
-# области: код Kufar → адрес раздела области на realt.by (Минск — без приставки)
 REALT_REGION = { '1' => 'brest-region', '2' => 'gomel-region', '3' => 'grodno-region', '4' => 'mogilev-region',
                  '5' => 'minsk-region', '6' => 'vitebsk-region', '7' => '' }.freeze
 KUFAR = JSON.parse(File.read(File.join(DIR, 'kufar_areas.json')))
@@ -48,7 +38,6 @@ def median(a)
   s.size.odd? ? s[s.size / 2] : ((s[s.size / 2 - 1] + s[s.size / 2]) / 2.0)
 end
 
-# Место лота: область (код Kufar), город, район
 def place(l)
   addr = l['location'].to_s
   reg = l['region'].to_s.empty? ? region_of(addr).to_s : l['region'].to_s
@@ -58,7 +47,6 @@ def place(l)
   [rgn, city, dist]
 end
 
-# Код города/района на Kufar: сам город, иначе «Х район», иначе районный центр (Ушачский → Ушачи)
 def kufar_area(rgn, city, dist)
   areas = (KUFAR[rgn] || {})['areas'] || {}
   return [nil, 'Минск'] if rgn == '7'
@@ -86,7 +74,6 @@ def kufar_ads(cat, rgn, ar)
   end
 end
 
-# realt.by: объявления раздела по области — копим в data/realt.json, обновляем раз в неделю
 REALT_FILE = File.join(DIR, '..', 'data', 'realt.json')
 REALT = (JSON.parse(File.read(REALT_FILE)) rescue {})
 REALT_DAYS = 7
@@ -111,7 +98,7 @@ def realt_ads(rgn, sec)
     sleep 2
     break if obs.size < 30 || ads.size >= pp['totalCount'].to_i
   end
-  return (c ? c['ads'] : []) if ads.empty?   # сайт не ответил — берём прошлую копию
+  return (c ? c['ads'] : []) if ads.empty?
   REALT[key] = { 'at' => Time.now.to_i, 'ads' => ads }
   $realt_dirty = true
   ads
@@ -125,20 +112,16 @@ end
 
 require_relative 'regions'
 require_relative 'store'
-# Считаем только активные лоты без свежего ориентира: новые, старой версии правил и проверенные
-# больше REFRESH_DAYS назад. Иначе каждый прогон — сотни запросов.
 REFRESH_DAYS = 14
 NOW = Time.now.to_i
 lots = Store.load
 found = 0
 skipped = 0
 
-# Здания, цеха и комплексы с рядовыми объявлениями не сравниваем: «здание гаражей
-# на 2000 м²» не одиночный гараж, а производственное помещение не офис.
 def kind_of(name)
   n = name.to_s.downcase
   return nil if n =~ /здани|комплекс|цех|производств|склад|строени|сооружени/
-  return nil if n =~ /аренд|(?<![а-яё])дол[яиейю](?![а-яё])/   # право аренды и доли — не сам объект
+  return nil if n =~ /аренд|(?<![а-яё])дол[яиейю](?![а-яё])/
   return 'Квартиры и комнаты' if n =~ /квартир|комнат/
   return 'Машиноместа' if n =~ /машино-?мест/
   return 'Гаражи' if n =~ /\Aгараж|гаражн\S* бокс/
@@ -184,7 +167,6 @@ todo.each do |i|
     same = ads.select { |a| a[:rooms] == r }
     ads = same if same.size >= MIN_N
   end
-  # площадь похожая — от половины до двойной, если таких объявлений хватает: помещение 30 м² не сравниваем с 500 м²
   if (la = l['area_num'].to_f) > 5
     near = ads.select { |a| a[:a].to_f.between?(la / 2, la * 2) }
     ads = near if near.size >= MIN_N
@@ -198,7 +180,6 @@ todo.each do |i|
         'high' => s[(s.size * 0.75).floor].round, 'n' => s.size,
         'query' => "#{spec[:term]}, #{where}", 'source' => src,
         'link' => 'https://www.kufar.by/l?query=' + ERB::Util.url_encode("#{spec[:term]} #{where}") }
-  # цена за м² — только если площадь есть и у лота, и у объявлений
   sqm = ads.select { |a| a[:a].to_f > 5 }.map { |a| a[:p] / a[:a] }
   if sqm.size >= MIN_N && l['area_num'].to_f > 5
     m['sqm'] = median(sqm.sort).round

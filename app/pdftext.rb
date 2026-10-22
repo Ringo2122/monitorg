@@ -1,6 +1,4 @@
 # encoding: utf-8
-# Текст из простого PDF: шрифты с таблицами ToUnicode (двухбайтовые коды), сжатие FlateDecode.
-# Нужен для извещений konfiskat.by: срок заявок и задаток там только в PDF. Внешних программ не требует.
 require 'zlib'
 module PdfText
   module_function
@@ -34,7 +32,7 @@ module PdfText
   def text(path)
     d = File.binread(path)
     objs = objects(d)
-    fonts = {}   # имя ресурса (/F1) → таблица
+    fonts = {}
     objs.each_value do |body|
       body.scan(%r{/(F\d+)\s+(\d+)\s+0\s+R}) do |name, ref|
         fo = objs[ref.to_i] or next

@@ -1,16 +1,4 @@
 # encoding: utf-8
-#
-# «Сколько за такие отдают на самом деле» — для каждого лота на сайте (build.rb):
-#   c     похожие завершённые торги: сводка (завершилось, продано, медианы) и до 6 лотов;
-#   h     история объекта: прошлые (и новые) торги того же объекта на любой площадке;
-#   prev  лоты архива — прошлые торги того же объекта: по ним кабинет сообщает «выставлен снова».
-# Кого сравниваем (правила Артёма, 25.09.2026):
-#   недвижимость — тот же населённый пункт и та же категория (квартиры с квартирами, склады со складами);
-#   легковые, грузовые и автобусы, спецтехника — та же марка и модель, год выпуска ±2, регион не важен;
-#   разделы между собой не смешиваем, оборудование не сравниваем. Подходящих нет — блока нет.
-# Тот же объект: VIN, инвентарный номер ЕГРНИ, кадастровый номер (только у земельных участков: у зданий
-# это номер участка под ними, на одном участке бывает несколько лотов); недвижимость — ещё то же название
-# в том же населённом пункте. Пул — итоги из памяти робота и таблица sales (итоги старше архива).
 require_relative 'objects'
 
 module Similar
@@ -50,9 +38,6 @@ module Similar
     m =~ /\A[A-Z]{4,}\z/ ? m.capitalize : m
   end
 
-  # lots — память после правок админки; shown — key → id лотов, которые есть на сайте;
-  # sales — строки таблицы sales; rows — ->(key) { строки подробностей }
-  # круг торгов для аналитики (15.10): «ключ|дата» завершённых торгов → [номер круга у объекта, начальная цена 1-го круга]
   def rounds
     @rounds || {}
   end
@@ -64,11 +49,9 @@ module Similar
       by_key[l['key']] = l
       inf[l['key']] = info(l, Obj.rows_of(rows.(l['key'])))
     end
-    # итоги старше архива — только из таблицы sales
     extra = sales.reject { |x| by_key[x['key']] }.group_by { |x| x['key'] }
     extra.each { |k, xs| inf[k] = info(xs.first, []) }
 
-    # ── один объект: объединяем ключи по идентификаторам ──
     par = {}
     find = ->(k) { par[k] ||= k; par[k] == k ? k : (par[k] = find.(par[k])) }
     uni = ->(a, b) { ra = find.(a); rb = find.(b); par[ra] = rb unless ra == rb }
@@ -78,17 +61,15 @@ module Similar
     end
     groups = inf.keys.group_by { |k| find.(k) }
 
-    # ── торги: каждое завершение — отдельная запись ──
     ent = ->(k, l, r, st) do
       { 'k' => k, 'id' => shown[k], 'n' => l['name'].to_s[0, 140], 'p' => l['platform'], 'u' => l['url'],
         'd' => (r && r['at'] || l['closed'] || l['req_to']).to_i,
-        # у belauction начальной цены нет (первая ставка символическая) — 0: в «к начальной» не идёт
         's' => (r && r['start'].to_f.positive? ? r['start'] : r && l['platform'] == 'belauction.by' ? 0 : l['price']).to_f.round,
         'st' => st, 'pr' => r && SOLD.include?(st) && r['price'].to_f.positive? ? r['price'].to_f.round : nil,
         'us' => r && r['users'].to_i.positive? ? r['users'].to_i : nil, 'a' => (l['area_num'].to_f.positive? ? l['area_num'].to_f : nil),
         'sec' => l['section'], 'loc' => l['location'] }
     end
-    auctions = Hash.new { |h, k| h[k] = [] }   # key → [запись…], текущие торги лота — с меткой cur
+    auctions = Hash.new { |h, k| h[k] = [] }
     lots.each do |l|
       k = l['key']
       done = ([l['result']] + (l['results'] || [])).compact.select { |r| FINAL.include?(r['st']) }
@@ -101,7 +82,6 @@ module Similar
     end
     extra.each { |k, xs| xs.each { |x| auctions[k] << ent.(k, x.merge('closed' => x['at']), x, x['st']) } }
 
-    # ── круги: завершённые торги одного объекта по дате — 1-й, 2-й, 3-й… (учёт — с октября 2025, раньше архивов нет) ──
     @rounds = {}
     groups.each_value do |ks|
       fin = ks.flat_map { |m| auctions[m].select { |a| FINAL.include?(a['st']) }.map { |a| [m, a] } }.sort_by { |_, a| a['d'] }
@@ -109,7 +89,6 @@ module Similar
       fin.each_with_index { |(m, a), i| @rounds["#{m}|#{a['d']}"] = [i + 1, s1] }
     end
 
-    # ── пул для сравнения: только завершённые торги ──
     idx = Hash.new { |h, k| h[k] = [] }
     auctions.each do |k, as|
       o = inf[k] or next
@@ -126,13 +105,11 @@ module Similar
       o = inf[k]
       g = find.(k)
       res = {}
-      # история: все торги объекта, кроме текущих торгов этого лота
       mates = groups[g] || [k]
       h = mates.flat_map { |m| auctions[m].reject { |a| m == k && a['cur'] } }.sort_by { |a| -a['d'] }.first(12)
       res['h'] = h.map { |a| a.reject { |x, _| %w[k cur sec loc a].include?(x) } } unless h.empty?
       prev = mates.reject { |m| m == k }.select { |m| by_key[m] && by_key[m]['status'] == 'archive' && shown[m] }.map { |m| shown[m] }
       res['prev'] = prev unless prev.empty?
-      # похожие: другие объекты по правилам раздела
       key, label = if o['veh']
                      v = o['veh']
                      ["v|#{l['section']}|#{v['b']}|#{v['m']}", "#{brand_ru(v['b'])} #{model_ru(v['m'])}, #{v['y'] - YEARS}–#{v['y'] + YEARS} г. в."]
@@ -147,7 +124,6 @@ module Similar
           sold = xs.select { |a| a['pr'] }
           pm = sold.select { |a| a['s'].positive? }.map { |a| (a['pr'].to_f / a['s'] - 1) * 100 }
           sqm = sold.select { |a| a['a'] }.map { |a| a['pr'] / a['a'] }
-          # в списке одинаковые строки (тот же лот в двух разделах площадки) — один раз
           items = (sold.sort_by { |a| -a['d'] } + (xs - sold).sort_by { |a| -a['d'] }).uniq { |a| [a['p'], a['d'], a['s'], a['pr'], a['st']] }.first(6)
           res['c'] = { 'by' => label, 'n' => xs.size, 'sold' => sold.size, 'pm' => pm.empty? ? nil : med(pm).round,
                        'pr' => sold.empty? ? nil : med(sold.map { |a| a['pr'] }).round,

@@ -1,24 +1,5 @@
 #!/usr/bin/env ruby
 # encoding: utf-8
-#
-# Сборка сайта из памяти (data/) в _site/:
-#   index.html  шаблон + короткие записи активных лотов
-#   arch.js     свежий архив (закрыт за ARCH_NEW дней) — грузится, только когда посетитель его открыл (календарь, архив)
-#   arch2.js    архив старше (архив площадок за год) и строки поиска по нему — когда нужен весь архив
-#   det/pN.js   подробности и условия покупки (для калькулятора) — PACKS пачек, у лота пачка постоянная; грузятся на странице лота;
-#               там же похожие завершённые торги, история объекта и точка на карте (similar.rb, geo.rb)
-#   srch.js     поиск по описанию: VIN, кадастровый и инвентарный номера, адрес, должник — грузится при поиске
-#   ph/<id>.jpg фото, по файлу на лот — браузер грузит только те, что на экране
-#   admin/      админка
-# Страница остаётся лёгкой, сколько бы лотов ни накопилось в архиве.
-#
-# Решения из админки (база Supabase) накладываются поверх данных площадок:
-#   • правки полей — поле, изменённое человеком, робот больше не трогает;
-#   • модерация — новый лот с замечаниями (нет фото, цены, города, срок «по правилу», похож на лот
-#     другой площадки) не показывается, пока его не одобрят; любой лот можно скрыть или вернуть на проверку;
-#   • склейки и разъединения дублей, закрепление на главной, выключенные площадки и разделы,
-#     правила калькулятора, тексты.
-# После сборки копия каталога с отметками уходит в базу (sync.rb) — по ней работает админка.
 require 'json'
 require 'base64'
 require 'fileutils'
@@ -42,18 +23,12 @@ require 'cgi'
 
 OUT  = ENV['OUT'] || File.join(Store::ROOT, '_site')
 TMP  = File.join(Store::ROOT, 'tmp')
-# Пачки подробностей: номер пачки лота постоянный — crc32(id) % PACKS. Раньше пачки шли по порядку лотов и сдвигались
-# при каждой сборке: браузер с закэшированной страницей (до 10 минут) искал лот не в той пачке — «подробных сведений нет».
-# 02.10: 200 → 1000 — с архивом за год (≈ 28 тыс. лотов) пачка из 200 весила бы 0,7 МБ; в 1000 — ≈ 30 лотов, как было
 PACKS = 1000
-# свежий архив — arch.js (календарь на главной, недавние лоты), старше — arch2.js
 ARCH_NEW = 45
 KEEP = %w[id art name price req_to torg url location region city debtor area_num platform section off
           photo pk market prices status closed why first_seen alt pin result phx land sub chance brand u].freeze
 SECS = %w[nedvizhimost avto gruz spec oborud arenda].freeze
 
-# Персональные данные: MASK=1 скрывает ФИО должников-физлиц и контактных лиц по осмотру.
-# По умолчанию выключено — решение владельца, вопрос открыт для юриста (закон 99-З).
 FIO = /[А-ЯЁ][а-яё]+(?:-[А-ЯЁ][а-яё]+)?\s+(?:[А-ЯЁ][а-яё]+\s+[А-ЯЁ][а-яё]+(?:вич|вна|ична|ич)|[А-ЯЁ]\.\s?[А-ЯЁ]\.)/
 PRIVATE = { /Должник|Собственник/ => 'Физическое лицо',
             /Контактное лицо|Мобильный|Ознакомление и осмотр/ => 'Указан на площадке' }.freeze
@@ -67,18 +42,14 @@ def mask(secs)
   end
 end
 
-# Адрес страницы лота. У ИПМ ключ — длинный слаг, укорачиваем стабильным хешем.
 def id_of(key)
-  key.start_with?('ipm-') ? "ipm-#{Digest::MD5.hexdigest(key)[0, 8]}" : Store.fname(key)   # ph/<id>.jpg — тоже имя файла
+  key.start_with?('ipm-') ? "ipm-#{Digest::MD5.hexdigest(key)[0, 8]}" : Store.fname(key)
 end
 
 def words(s)
   s.to_s.downcase.tr('ё', 'е').scan(/[a-zа-я0-9]{3,}/).uniq
 end
 
-# ── решения из админки ──
-# Без базы (локальная сборка) — сайт как есть. База настроена, но не ответила — сборку останавливаем:
-# иначе на сайт вернулись бы скрытые лоты. Прежняя версия сайта остаётся на месте.
 ADM = if Sb.on?
         begin
           { 'cfg' => Sb.settings, 'ov' => Sb.all('overrides').map { |o| [o['key'], o] }.to_h,
@@ -91,8 +62,6 @@ ADM = if Sb.on?
       else
         { 'cfg' => {}, 'ov' => {}, 'rules' => [], 'photos' => [], 'sales' => [] }
       end
-# итоги торгов (для «Сколько за такие отдают» и аналитики): копия из прошлого файла аналитики, если она сходится
-# с базой по числу строк и ей меньше недели; иначе — вся таблица, как раньше (statsfile.rb)
 ST_PTR = Sb.on? ? (Sb.get('stats_file?select=name,key&order=at.desc&limit=1').first rescue nil) : nil
 ST_PREV = StatsFile.previous(ST_PTR)
 sales_full_at = Time.now.to_i
@@ -114,35 +83,23 @@ if Sb.on?
 end
 CFG = ADM['cfg']
 OV = ADM['ov']
-MOD_SINCE = CFG['mod_since'].to_i   # лоты, появившиеся позже, проходят модерацию; 0 — модерация выключена
+MOD_SINCE = CFG['mod_since'].to_i
 
 now = Time.now.to_i
 lots = Store.load
-# все площадки, с которых берём лоты (активные и архив) — число на главной: «… с 18 площадок» (14.10: считали только
-# площадки с открытыми лотами, у minskestate закрылись оба — стало 17)
 nplat = lots.map { |l| l['platform'] }.uniq.size
-# ссылки со страниц площадок — только http(s): ссылка вида «javascript:…» на сайт не попадёт, даже если площадку взломают
 web = ->(u) { u.is_a?(String) && u =~ %r{\Ahttps?://}i ? u : nil }
 lots.each do |l|
   l['url'] = web.(l['url'])
-  # konfiskat.by — витрина, торги идут на torgikonfiskat.by: «На площадке» ведёт туда, если ссылка известна (20.10, Артём)
-  # у недвижимости старая ссылка бывала чужой (20.10: цех в Новогрудке вёл на долю дома в Червене) — берём только
-  # проверенную роботом по каталогу торгов (tk_chk, update.rb)
   l['url'] = web.(l['tk']) || l['url'] if l['platform'] == 'konfiskat.by' && l['tk'] && (l['section'] != 'nedvizhimost' || l['tk_chk'])
   l['phx'] = web.(l['phx']) if l['phx']
   l['pics'] = l['pics'].select { |u| web.(u) } if l['pics'].is_a?(Array)
   l['market'] = l['market'].merge('link' => web.(l['market']['link'])) if l['market'].is_a?(Hash) && l['market']['link']
-  # срок истёк после прогона обновления — в выдаче такой лот уже не нужен
   if l['status'] == 'active' && l['req_to'].to_i <= now
     l.merge!('status' => 'archive', 'closed' => l['req_to'], 'why' => 'deadline')
   end
-  # konfiskat.by: город есть только в извещении, а часть извещений — сканы. Правило Артёма (24.09):
-  # если площадка не указала иного — Минск
   l['location'] = 'г. Минск' if l['platform'] == 'konfiskat.by' && l['location'].to_s.strip.empty?
-  # область, а не город: «г. Речица» из старых записей → «Гомельская область» (фильтр «Регион» — только области и Минск);
-  # каждый раз заново — правила regions.rb уточняются («Могилёв, Гомельское шоссе» был Гомельской)
   l['region'] = region_of(l['location'])
-  # площади нет отдельной строкой — ищем в названии и описании (app/area.rb)
   if %w[nedvizhimost arenda].include?(l['section']) && !l['area_num'].to_f.positive?
     land = l['sub_ru'].to_s =~ /участ/i || l['name'].to_s =~ /\A\s*земельн\S*\s+участ/i
     txt = ([l['name']] + Store.details(l['key']).flat_map { |s| (s['rows'] || []).map { |r| r.join(': ') } }).join(' ')
@@ -152,26 +109,19 @@ lots.each do |l|
   l['debtor'] = 'Физическое лицо' if ENV['MASK'] && l['debtor'].to_s =~ FIO
   l['id'] = id_of(l['key'])
   l['photo'] = File.exist?(Store.ph_path(l['key'])) ? l['id'] : nil
-  # фильтр «Земельный участок» в «Недвижимости» — участки со всех площадок: сам лот — участок
-  # («Производственная база … земельный участок», «Здание … участка связи», «Участок теплиц» — не участки)
   l['land'] = 1 if l['section'] == 'nedvizhimost' && (l['sub_ru'] == 'Земельные участки' || l['name'].to_s =~ /\A\s*земельн\S*\s+участ/i)
-  l.delete('prices') unless (l['prices'] || []).size > 1   # показываем только если цена менялась
-  # Проверка правдоподобия ориентира: дисконт больше 70% или цена выше рынка втрое —
-  # почти всегда промах сопоставления (развалюха за 200 BYN, завод против помещения)
+  l.delete('prices') unless (l['prices'] || []).size > 1
   if (m = l['market'])
     r = m['median'].to_f.positive? ? l['price'].to_f / m['median'] : 0
-    l.delete('market') unless r >= 0.30 && r <= 3.0 && m['n'].to_i >= 3   # 15.10: дисконт больше 70% — не показываем (было 85%)
+    l.delete('market') unless r >= 0.30 && r <= 3.0 && m['n'].to_i >= 3
   end
 end
-Chance.apply(lots, now)   # шанс, что торги состоятся (бета)
+Chance.apply(lots, now)
 
-# копия для админки — значения площадки, до правок человека
 MIRROR = %w[key id art platform section name price req_to torg location region url area_num debtor].freeze
 orig = lots.map { |l| [l['key'], MIRROR.map { |k| [k, l[k]] }.to_h] }.to_h
-# условия торгов и фото площадки — для карточки в админке (только у активных: архив за год весил бы мегабайты)
 raw = lots.map { |l| [l['key'], l.slice('terms', 'pics')] }.to_h
 
-# ── правки человека: его значение главнее площадки ──
 descr = {}
 ph_src = {}
 lots.each do |l|
@@ -183,7 +133,6 @@ lots.each do |l|
   l['price'] = f['price'].to_f if f['price'].to_f.positive?
   l['area_num'] = f['area_num'].to_f if f['area_num'].to_f.positive?
   l['debtor'] = f['debtor'].to_s.strip unless f['debtor'].to_s.strip.empty?
-  # условия торгов из админки поверх площадки: вписанный шаг или сбор заменяет то, что робот прочитал о нём (14.10)
   if (tm = f['terms']).is_a?(Hash) && tm.any?
     t = (l['terms'] || {}).dup
     t = t.reject { |k, _| %w[step_abs step_pct step_base first_pct step_min_pct].include?(k) } if tm['step_abs'] || tm['step_pct']
@@ -192,7 +141,6 @@ lots.each do |l|
     t.delete('vat_add') if tm.key?('vat')
     l['terms'] = t.merge(tm).merge('man' => 1)
   end
-  # скрытые фото площадки; скрыто первое — наша копия главного фото тоже (она с него), в каталоге — заглушка или своё фото
   hp = Array(f['hide_pics'])
   if hp.any?
     first = (l['pics'] || [])[0]
@@ -208,7 +156,6 @@ lots.each do |l|
       l['market'] = { 'median' => m['median'].to_f, 'manual' => true, 'note' => m['note'].to_s, 'source' => 'оценка МониТорга' }
     end
   end
-  # срок поправлен вручную — статус считаем по нему
   if f['req_to'].to_i.positive?
     if l['req_to'] > now && l['status'] == 'archive' && l['why'] == 'deadline'
       l['status'] = 'active'
@@ -217,11 +164,9 @@ lots.each do |l|
       l.merge!('status' => 'archive', 'closed' => l['req_to'], 'why' => 'deadline')
     end
   end
-  # снят с торгов вручную: площадка сняла лот, а робот этого не увидел
   if f['removed'].to_i.positive? && l['status'] == 'active'
     l.merge!('status' => 'archive', 'closed' => f['removed'].to_i, 'why' => 'removed')
   end
-  # итог торгов из админки — когда робот не смог его забрать
   if (r = f['result']).is_a?(Hash) && %w[sold single failed cancelled].include?(r['st']) && l['status'] == 'archive'
     l['result'] = { 'st' => r['st'], 'start' => l['price'], 'price' => r['price'].to_f.positive? ? r['price'].to_f : nil,
                     'at' => (l['torg'] || l['req_to']).to_i, 'man' => 1 }.compact
@@ -229,15 +174,11 @@ lots.each do |l|
   l['pin'] = 1 if o['pinned'] && l['status'] == 'active'
 end
 
-# ёмкости и бочки — оборудование, даже если продавец поставил их в прицепы или сельхозтехнику (21.10, Артём:
-# torgi.gov.by «Ёмкость для молока», «Бочка ВУ-3»); МЖТ — машина для жидких удобрений, остаётся техникой. Раздел из админки главнее
 lots.each do |l|
   next unless %w[avto gruz spec].include?(l['section']) && l['name'].to_s =~ /\A\s*(?:[её]мкость|бочка)/i && l['name'] !~ /МЖТ/i
   l['section'] = 'oborud' unless ((OV[l['key']] || {})['fields'] || {})['section']
 end
-# раздел и подраздел каталога («transport/legkovye») — после правок человека: раздел мог смениться (app/cats.rb)
 lots.each { |l| l['sub'] = Cats.of(l, ->(k) { Store.details(k) }) }
-# подраздел, выбранный в админке, главнее робота (14.10); для админки — что определил бы робот по разделу площадки
 auto_sub = {}
 lots.each do |l|
   f = (OV[l['key']] || {})['fields'] || {}
@@ -245,13 +186,10 @@ lots.each do |l|
   auto_sub[l['key']] = Cats.of(l.merge('section' => orig[l['key']]['section']), ->(k) { Store.details(k) })
   l['sub'] = f['sub'] if Cats.valid?(f['sub'])
 end
-# марка — фильтр у легковых, грузовых и автобусов (app/brands.rb); пока только у активных лотов
 BRAND_SUBS = %w[transport/legkovye transport/gruzovye transport/avtobusy].freeze
 lots.each { |l| l['brand'] = Brands.of(l, Store.details(l['key']).flat_map { |x| x['rows'] || [] }) if l['status'] == 'active' && BRAND_SUBS.include?(l['sub']) }
-# город или район внутри области — второй уровень фильтра «Регион» (regions.rb), тоже после правок адреса в админке
 lots.each { |l| l['city'] = place_of(l['location'], l['region']) }
 
-# фото, загруженные в админке
 FileUtils.mkdir_p(File.join(TMP, 'ph'))
 by_key = lots.map { |l| [l['key'], l] }.to_h
 ADM['photos'].each do |p|
@@ -265,7 +203,6 @@ ADM['photos'].each do |p|
   l['photo'] = l['id']
 end
 
-# ── что не показываем ──
 plat_off = (CFG['platforms'] || {}).select { |_, v| v == false }.keys
 sec_off = (CFG['sections'] || {}).select { |_, v| v == false }.keys
 hidden_why = {}
@@ -280,11 +217,6 @@ end
 active = lots.select { |l| l['status'] == 'active' && !hidden_why[l['key']] }.sort_by { |l| l['req_to'].to_i }
 arch = lots.select { |l| l['status'] == 'archive' && !hidden_why[l['key']] }.sort_by { |l| -l['closed'].to_i }
 
-# Один лот на нескольких площадках — одна карточка: бывает, что объект выставлен на двух площадках
-# с разными датами. Признак дубля — одинаковые название и стартовая цена на РАЗНЫХ площадках
-# (на одной площадке это разные лоты). Главная запись — та, где торги раньше; остальные уходят в «alt»:
-# площадка, ссылка, сроки. (До 25.09.2026 так склеивались ИПМ и ЦПО; ЦПО больше не собираем.)
-# Из админки можно склеить любые два лота вручную (merge) или разъединить ошибочную склейку (split).
 sig = lambda do |l|
   l['name'].to_s.downcase.tr('ё', 'е').gsub(/[^a-zа-я0-9]/, '') + '|' + l['price'].to_f.round.to_s
 end
@@ -320,8 +252,6 @@ end
 active.reject! { |l| dup_of[l['key']] }
 puts "склеено дублей: #{dup_of.size}" unless dup_of.empty?
 
-# ── модерация ──
-# Похожий лот на другой площадке: та же цена и больше половины общих слов в названии, но не склеен
 dup_with = {}
 active.select { |l| l['price'].to_f.positive? }.group_by { |l| l['price'].to_f.round }.each_value do |g|
   next if g.size < 2 || g.size > 40
@@ -334,10 +264,7 @@ active.select { |l| l['price'].to_f.positive? }.group_by { |l| l['price'].to_f.r
     dup_with[b['key']] ||= a['key']
   end
 end
-# название, по которому лот не узнать: «Лот № 3», «Имущество», «Транспортное средство»
 BAD_NAME = /\A(лот\s*№?\s*\d+|имущество|недвижимое имущество|транспортное средство|автомобиль|легковой автомобиль|грузовой автомобиль|объект|здание|сооружение|оборудование|товары?|изолированное помещение|капитальное строение)\.?\z/i
-# замечания, из-за которых новый лот не задерживается: видны в админке, на сайт лот выходит сразу
-# (даты: 14.10 первая же сборка задержала 66 лотов etpvit и ИПМ с ошибкой робота в дате торгов — робот её исправляет сам)
 SOFT = %w[no_area bad_dates].freeze
 same = ->(v) { v.is_a?(Numeric) ? v.to_f.round(2) : v.to_s.strip }
 reasons = {}
@@ -345,19 +272,16 @@ active.each do |l|
   r = []
   o = OV[l['key']] || {}
   fresh = MOD_SINCE.positive? && l['first_seen'].to_i > MOD_SINCE
-  r << 'no_photo' unless l['photo'] || l['phx'] || l['platform'] == 'mgcn.by'   # МГЦН фото не публикует вовсе — не замечание
+  r << 'no_photo' unless l['photo'] || l['phx'] || l['platform'] == 'mgcn.by'
   r << 'no_price' unless l['price'].to_f.positive?
-  r << 'no_city' if l['location'].to_s.strip.empty? || l['region'].to_s.empty?   # нет адреса или по нему не определилась область
-  # konfiskat: извещение — скан, срок заявок поставлен по правилу организатора
+  r << 'no_city' if l['location'].to_s.strip.empty? || l['region'].to_s.empty?
   if l['platform'] == 'konfiskat.by' && Store.details(l['key']).any? { |s| s['rows'].any? { |_, v| v.to_s.include?('по правилу организатора') } }
     r << 'rule_deadline'
   end
   r << 'dup_maybe' if dup_with[l['key']]
-  r << 'bad_dates' if l['torg'].to_i.positive? && l['torg'].to_i < l['req_to'].to_i - 60   # торги раньше конца приёма заявок
+  r << 'bad_dates' if l['torg'].to_i.positive? && l['torg'].to_i < l['req_to'].to_i - 60
   r << 'bad_name' if l['name'].to_s.strip.size < 4 || l['name'].to_s.strip =~ BAD_NAME
-  # torgi.gov.by площадь часто не публикует вовсе (только в техпаспорте) — там замечание не нужно (решение Артёма 14.10)
   r << 'no_area' if fresh && l['section'] == 'nedvizhimost' && !l['area_num'].to_f.positive? && l['platform'] != 'torgi.gov.by'
-  # площадка изменила поле, которое поправили в админке: base — значения площадки на момент правки
   if (b = o['base']).is_a?(Hash) && b.any? { |k, v| orig[l['key']].key?(k) && same.(orig[l['key']][k]) != same.(v) }
     r << 'plat_changed'
   end
@@ -370,7 +294,6 @@ active.reject! do |l|
   hold = o['mod'] == 'review' || (fresh && (reasons[l['key']] - SOFT).any? && o['mod'] != 'approved')
   next false unless hold
   hidden_why[l['key']] = 'mod'
-  # склеенные с ним ждут вместе с ним
   dup_of.each { |k, m| hidden_why[k] = 'dup' if m == l['key'] }
   queued += 1
   true
@@ -381,13 +304,10 @@ puts "ждут проверки: #{queued}" if queued.positive?
 FileUtils.rm_rf(OUT)
 FileUtils.mkdir_p([File.join(OUT, 'ph'), File.join(OUT, 'det'), File.join(OUT, 'admin')])
 
-# «Сколько за такие отдают»: похожие завершённые торги и история объекта (similar.rb)
 shown = (active + arch).map { |l| [l['key'], l['id']] }.to_h
 sim = Similar.run(lots, shown, ADM['sales'], ->(k) { Store.details(k) })
 puts "похожие торги: у #{sim.count { |_, v| v['c'] }} лотов, история объекта: у #{sim.count { |_, v| v['h'] }}"
 
-# подробности — пачками с постоянным номером (PACKS): порядок лотов на номер пачки не влияет.
-# Фото — каждое отдельным файлом ph/<id>.jpg: странице лота нужно одно фото, а не пачка из 40 (0,6–0,9 МБ)
 Pages.prepare(active: active, arch: arch, details: ->(k) { Store.details(k) }, now: now)
 order = active.group_by { |l| l['section'] }.values.flatten + arch
 packs = 0
@@ -405,20 +325,16 @@ order.group_by { |l| Zlib.crc32(l['id']) % PACKS }.each do |pk, chunk|
         secs.unshift('h' => 'Сведения о лоте', 'rows' => [['Описание', d]])
       end
     end
-    # НДС — статусом для калькулятора (vat.rb): по пометке робота и тексту лота
     t = l['terms'] || {}
     vk = Vat.kind(t, secs.flat_map { |sx| (sx['rows'] || []).map { |r| r.join(' ') } }.join(' '))
     vat_stat[vk || 'нет'] += 1 if l['status'] == 'active'
     x = { 's' => ENV['MASK'] ? mask(secs) : secs, 't' => t.merge('vk' => vk) }
     x.merge!((sim[l['key']] || {}).slice('c', 'h'))
-    x['p'] = l['pics'] if (l['pics'] || []).size.positive?   # все фото карточки площадки (ссылками)
-    # карта — только у активных; адрес — тот, по которому искали точку (у konfiskat — место хранения)
+    x['p'] = l['pics'] if (l['pics'] || []).size.positive?
     if l['status'] == 'active' && l['geo'].is_a?(Array)
       x['g'] = l['geo'] + [l['platform'] == 'konfiskat.by' ? Obj.storage(Obj.rows_of(secs)) : l['location']]
     end
-    # «Право аренды»: ставка из извещения; для коэффициента спроса — зона Минска по карте МГЦН (zones.rb)
     x['r'] = l['rent'].merge(l['rent']['k'] == 'ks' ? { 'z' => Zones.at(l['geo']) } : {}) if l['rent']
-    # архивный лот — и сама карточка: приложение откроет его из пачки, не загружая весь архив (18 МБ, 22.10)
     x['l'] = KEEP.each_with_object({}) { |k, h| h[k] = l[k] unless l[k].nil? } if l['status'] == 'archive'
     det[l['id']] = x
     FileUtils.cp(ph_src[l['key']] || Store.ph_path(l['key']), File.join(OUT, 'ph', "#{l['id']}.jpg")) if l['photo']
@@ -428,12 +344,10 @@ order.group_by { |l| Zlib.crc32(l['id']) % PACKS }.each do |pk, chunk|
 end
 puts "НДС у активных лотов: #{vat_stat.sort_by { |_, n| -n }.map { |k, n| "#{k} #{n}" }.join(', ')}"
 
-# настройки, которые нужны страницам: тексты, правила калькулятора, выключенные разделы, форма заявки
 pub = { 'texts' => CFG['texts'] || {}, 'calc' => CFG['calc'] || {}, 'sec_off' => sec_off,
-        'bav' => Bav.load.slice('v', 'from', 'src', 'url'),   # действующая БАВ — для расчёта аренды
-        'cats' => Cats.tree }                                  # разделы и подразделы каталога
+        'bav' => Bav.load.slice('v', 'from', 'src', 'url'),
+        'cats' => Cats.tree }
 pub['sb'] = { 'url' => ENV['SB_URL'], 'key' => ENV['SB_KEY'] } if Sb.on?
-# курс доллара Нацбанка на сегодня: ориентир в долларах под ценой и фильтр по цене в USD. Не ответил — сайт без долларов
 def nbrb_usd
   u = URI('https://api.nbrb.by/exrates/rates/USD?parammode=2')
   2.times do
@@ -449,15 +363,13 @@ def nbrb_usd
   nil
 end
 pub['usd'] = nbrb_usd
-# главная из блоков (админка → «Главная страница»): картинки блоков — файлами media/<id>-<отпечаток>.jpg, в настройках —
-# пути к ним; ссылки — только http(s) и разделы сайта (#/…). Без настроек сайт собирает главную как раньше.
 if CFG['home'].is_a?(Hash)
   media = {}
   if ADM['media']
     FileUtils.mkdir_p(File.join(OUT, 'media'))
     ADM['media'].each do |m|
       next unless m['id'].to_s =~ /\A[\w-]{1,40}\z/
-      ext = m['data'].to_s.start_with?('data:image/png') ? 'png' : 'jpg'   # значки и логотип — PNG с прозрачным фоном
+      ext = m['data'].to_s.start_with?('data:image/png') ? 'png' : 'jpg'
       file = "media/#{m['id']}-#{Digest::MD5.hexdigest(m['data'].to_s)[0, 8]}.#{ext}"
       File.binwrite(File.join(OUT, file), Base64.decode64(m['data'].to_s.sub(/\Adata:[^,]*,/, '')))
       media[m['id']] = file
@@ -465,7 +377,6 @@ if CFG['home'].is_a?(Hash)
   end
   link = ->(u) { u.to_s.strip =~ %r{\A(https?://|#/)}i ? u.to_s.strip : nil }
   home = JSON.parse(JSON.generate(CFG['home']))
-  # картинки: ключи img и logo, наборы imgs (значки разделов и пунктов) — номер картинки → путь к файлу; ссылки — url, btn_url
   fix = lambda do |o|
     case o
     when Array then o.each { |x| fix.(x) }
@@ -483,8 +394,6 @@ if CFG['home'].is_a?(Hash)
   fix.(home)
   pub['home'] = home
 end
-# новости из админки (без базы — сайт берёт статьи из своего кода). Фото, загруженное в админке, — файлом news/<…>.jpg
-# (в имени — отпечаток фото: новое фото не застрянет в кеше браузера); фото по умолчанию — путь к файлу сайта (img/news/…)
 if ADM['news']
   FileUtils.mkdir_p(File.join(OUT, 'news'))
   pub['news'] = ADM['news'].map do |n|
@@ -503,26 +412,22 @@ end
 arch_cut = now - ARCH_NEW * 86_400
 arch1, arch2 = arch.partition { |l| l['closed'].to_i >= arch_cut }
 archn = arch.group_by { |l| l['section'] }.map { |k, v| [k, v.size] }.to_h.merge('_' => arch.size, 'cut' => arch_cut)
-# архив по разделам и подразделам каталога — для фильтра «Активные / Архив» до загрузки самого архива
 archn['tree'] = arch.each_with_object(Hash.new(0)) { |l, h| next unless l['sub']; h[l['sub']] += 1; h[l['sub'].split('/').first] += 1 }
 slim = ->(l) { KEEP.each_with_object({}) { |k, h| h[k] = l[k] unless l[k].nil? }.tap { |h| h['np'] = l['pics'].size if (l['pics'] || []).size > 1 } }
 tpl = File.read(File.join(__dir__, 'site.tpl.html'), encoding: 'UTF-8')
-# название во вкладке и в Google, описания для поиска и для превью ссылок — из админки (тексты seo_*), иначе по умолчанию
 SEO_DEF = { 'seo_title' => 'МониТорг - торги по имуществу должников Беларуси', 'seo_brand' => 'МониТорг',
             'seo_desc' => 'Все торги по имуществу Беларуси в одном каталоге: недвижимость, авто, спецтехника, оборудование и аренда ' \
                           'с 18 площадок. Фильтры, история цен, итоги торгов.',
             'seo_short' => 'Агрегатор торгов по имуществу со всех площадок Беларуси' }.freeze
 seo = SEO_DEF.map { |k, v| t = ((CFG['texts'] || {})[k]).to_s.strip; [k, (t.empty? ? v : t).gsub('&', '&amp;').gsub('"', '&quot;').gsub('<', '&lt;')] }.to_h
 tpl = tpl.gsub('__TITLE__', seo['seo_title']).gsub('__DESC__', seo['seo_desc']).gsub('__SHORT__', seo['seo_short']).gsub('__BRAND__', seo['seo_brand'])
-# Оболочка страницы (22.10, SEO этап 3) — одна для главной и всех SEO-страниц: заголовок, шапка, подвал, плашка cookie —
-# из шаблона; стили, тема, данные и приложение — общими файлами /assets/* (браузер кеширует их один раз на все страницы)
 tpl_head = tpl[0...tpl.index('<script>')]
 i_js = tpl.index("<script>\nconst DATA = window.MT_DATA;") or abort 'шаблон: нет начала приложения'
 body_tpl = tpl[(tpl.index('</style>') + 8)...i_js]
 FileUtils.mkdir_p(File.join(OUT, 'assets'))
 File.write(File.join(OUT, 'assets', 'site.css'), tpl[%r{<style>(.*?)</style>}m, 1] + Pages::CSS)
 File.write(File.join(OUT, 'assets', 'theme.js'), tpl[%r{<script>\s*(/\* Общий стиль.*?)</script>}m, 1]
-  .sub('__THEME__') { JSON.generate((pub['home'] || {})['theme'] || {}) })   # общий стиль — до отрисовки, без мигания
+  .sub('__THEME__') { JSON.generate((pub['home'] || {})['theme'] || {}) })
 File.write(File.join(OUT, 'assets', 'app.js'), tpl[(i_js + 8)...tpl.rindex('</script>')])
 File.write(File.join(OUT, 'assets', 'data.js'),
            "window.MT_DATA=#{JSON.generate(active.map(&slim))};window.MT_SNAP=#{now};window.MT_ARCHN=#{JSON.generate(archn)};" \
@@ -548,26 +453,22 @@ SHELL = lambda do |title: nil, desc: nil, path: nil, robots: 'noindex, nofollow'
 end
 File.write(File.join(OUT, 'index.html'), SHELL.())
 File.write(File.join(OUT, 'arch.js'), "__arch(#{JSON.generate(arch1.map(&slim))});")
-# SEO-страницы (app/pages.rb): разделы, срезы, площадки, лоты, sitemap. SEO_PAGES=0 — не собирать
 unless ENV['SEO_PAGES'] == '0'
   t0 = Time.now
   r = Pages.run(out: OUT, active: active, arch: arch, details: ->(k) { Store.details(k) }, tree: Cats.tree, now: now,
                 shell: SHELL, live: ENV['SEO_LIVE'] == '1')
   puts "SEO-страницы: #{r[:pages]} (открыто поиску #{r[:indexed]}), лотов #{r[:lots]}, срезов #{r[:slices]}, #{(Time.now - t0).round} с"
 end
-# поиск по описанию: то, чего нет в карточке, — номера объекта, адрес, марка и модель, начало описания
 SRCH_ROWS = /\A(?:Адрес \(местонахождение\)|Местоположение имущества|Местонахождение имущества|Местонахождение|Местоположение|Марка|Модель|Марка \(модель\)|Идентификационный номер|Регистрационный номер|Кадастровый номер|Инвентарный номер.*|Инв\. номер|Год выпуска|Год)\z/
 DESC_ROWS = /\A(?:Описание(?: имущества)?|Дополнительная информация(?: по всему лоту)?)\z/
 srch = order.map do |l|
   rows = Obj.rows_of(Store.details(l['key']))
   ids = Obj.ids(l['name'], rows).map { |x| x.split(':', 2)[1] }
   desc = rows.select { |k, _| k =~ DESC_ROWS }.map { |_, v| v }.join(' ')[0, l['status'] == 'active' ? 300 : 150]
-  # название, место, должник и номер лота поиск берёт из карточки — здесь только то, чего в ней нет
   t = [*rows.select { |k, _| k =~ SRCH_ROWS }.map { |_, v| v }, *ids, *ids.map { |x| x.delete('/-') }, desc].compact.join(' ')
   t = t.gsub(/&#(\d+);/) { $1.to_i.chr('UTF-8') }.downcase.tr('ё', 'е').gsub(/\s+/, ' ').split(' ').uniq.join(' ')
   [l['id'], t] unless t.empty?
 end.compact.to_h
-# строки поиска старого архива — в arch2.js: srch.js грузится при первом же поиске и должен оставаться лёгким
 old = arch2.map { |l| [l['id'], true] }.to_h
 srch2 = srch.select { |id, _| old[id] }
 srch.reject! { |id, _| old[id] }
@@ -575,23 +476,18 @@ File.write(File.join(OUT, 'srch.js'), "__srch(#{JSON.generate(srch)});")
 File.write(File.join(OUT, 'arch2.js'), "__arch2(#{JSON.generate(arch2.map(&slim))},#{JSON.generate(srch2)});")
 File.write(File.join(OUT, '.nojekyll'), '')
 adm = File.read(File.join(__dir__, 'admin.html'), encoding: 'UTF-8')
-FileUtils.cp(File.join(__dir__, 'stats.js'), File.join(OUT, 'stats.js'))   # аналитика: общая для админки и кабинета
-FileUtils.cp_r(File.join(__dir__, 'noph'), File.join(OUT, 'noph'))   # заглушки «нет фото» по разделам (tools/noph.rb)
+FileUtils.cp(File.join(__dir__, 'stats.js'), File.join(OUT, 'stats.js'))
+FileUtils.cp_r(File.join(__dir__, 'noph'), File.join(OUT, 'noph'))
 FileUtils.cp_r(File.join(__dir__, 'img'), File.join(OUT, 'img'))
-# шрифты и библиотека карты — со своего сайта, не с Google и cdnjs (15.10, политика обработки ПД)
 FileUtils.cp_r(File.join(__dir__, 'fonts'), File.join(OUT, 'fonts'))
-FileUtils.cp_r(File.join(__dir__, 'vendor'), File.join(OUT, 'vendor'))     # картинки сайта: 3D-значки «Почему МониТорг» (Fluent Emoji, MIT)
-# значок вкладки: без него браузер просит /favicon.ico и получает 404 (13.10 — сигнал мониторинга после переезда на monitorg.by)
+FileUtils.cp_r(File.join(__dir__, 'vendor'), File.join(OUT, 'vendor'))
 %w[favicon.svg favicon.ico apple-touch-icon.png admin-icon.svg admin-icon.png admin-icon-180.png logo-mark.png logo-mark-dark.png logo-mail.png].each { |f| FileUtils.cp(File.join(__dir__, f), File.join(OUT, f)) }
-# настройки сервера hoster.by (сжатие, кеш, https) — .htaccess; на GitHub Pages не мешает
 FileUtils.cp(File.join(__dir__, 'htaccess'), File.join(OUT, '.htaccess'))
-# политики по умолчанию (страницы «Политика конфиденциальности» и «Политика cookie», пока в админке нет своего текста)
 FileUtils.mkdir_p(File.join(OUT, 'docs'))
 Dir[File.join(__dir__, 'docs', '*.txt')].each { |f| FileUtils.cp(f, File.join(OUT, 'docs', File.basename(f))) }
 File.write(File.join(OUT, 'admin', 'index.html'),
            adm.sub('__SB_URL__') { ENV['SB_URL'].to_s }.sub('__SB_KEY__') { ENV['SB_KEY'].to_s }.sub('__BUILD__', now.to_s).sub('__CATS__') { JSON.generate(Cats.tree) })
 
-# копия каталога для админки: значения площадки + отметки сборки (что показано, почему скрыто)
 published = active.map { |l| [l['key'], true] }.to_h
 mirror = lots.map do |l|
   o = orig[l['key']]
@@ -604,13 +500,11 @@ mirror = lots.map do |l|
           'market' => l['market'] && l['market'].slice('median', 'n', 'source', 'low', 'high', 'manual', 'link'),
           'reasons' => reasons[l['key']] || [], 'dup_with' => dup_with[l['key']], 'dup_of' => dup_of[l['key']],
           'alt' => l['alt'], 'published' => published[l['key']] || (l['status'] == 'archive' && !hidden_why[l['key']]),
-          'prev' => l['status'] == 'active' ? (sim[l['key']] || {})['prev'] : nil,   # прошлые торги объекта — для «выставлен снова»
+          'prev' => l['status'] == 'active' ? (sim[l['key']] || {})['prev'] : nil,
           'hidden_why' => hidden_why[l['key']], 'synced' => now)
 end
 FileUtils.mkdir_p(TMP)
 File.write(File.join(TMP, 'mirror.json'), JSON.generate(mirror))
-# итоги завершённых торгов — в постоянную таблицу sales (sync.rb): аналитика продаж копится дольше архива.
-# Значения — с правками из админки (раздел, место), включая прошлые торги перевыставленных лотов
 FINAL_ST = %w[sold single failed cancelled].freeze
 sales = lots.flat_map do |l|
   ([l['result']] + (l['results'] || [])).compact.select { |r| FINAL_ST.include?(r['st']) }.map do |r|
@@ -622,16 +516,12 @@ sales = lots.flat_map do |l|
 end.uniq { |x| [x['key'], x['at']] }
 File.write(File.join(TMP, 'sales.json'), JSON.generate(sales))
 
-# ── данные «Аналитики» — зашифрованным файлом на сайте (statsfile.rb) ──
-# Не собрался — не страшно: имя в базе не обновится, кабинет и админка возьмут прежний файл или данные из базы
 FileUtils.rm_f(File.join(TMP, 'stats_file.json'))
 FileUtils.mkdir_p(File.join(OUT, 'st'))
-File.write(File.join(OUT, 'robots.txt'), "User-agent: *\nDisallow: /st/\n")   # поисковикам файлы аналитики не нужны
+File.write(File.join(OUT, 'robots.txt'), "User-agent: *\nDisallow: /st/\n")
 begin
-  # прежний файл — в новую версию сайта: тот, кто получил его имя перед выкладкой, его найдёт
   File.binwrite(File.join(OUT, 'st', "#{ST_PREV['name']}.bin"), ST_PREV['bytes']) if ST_PREV
-  all_sales = (ADM['sales'] + sales).each_with_object({}) { |x, h| h["#{x['key']}|#{x['at'].to_i}"] = x }.values   # как в базе после sync.rb
-  # для аналитики: город по адресу и круг торгов объекта — в копию итогов не пишем (сверка с базой — по числу строк)
+  all_sales = (ADM['sales'] + sales).each_with_object({}) { |x, h| h["#{x['key']}|#{x['at'].to_i}"] = x }.values
   rnd = Similar.rounds
   file_sales = all_sales.map do |x|
     r = rnd["#{x['key']}|#{x['at'].to_i}"]
@@ -641,7 +531,7 @@ begin
            'lots' => StatsFile.cols(mirror.sort_by { |l| l['key'] }, StatsFile::LOT_COLS),
            'sales' => StatsFile.cols(file_sales.sort_by { |x| [x['key'], x['at'].to_i] }, StatsFile::SALE_COLS) }
   bytes, key = StatsFile.seal(data)
-  StatsFile.open(bytes, key)   # проверка: расшифровывается
+  StatsFile.open(bytes, key)
   sname = SecureRandom.hex(16)
   File.binwrite(File.join(OUT, 'st', "#{sname}.bin"), bytes)
   File.write(File.join(TMP, 'stats_file.json'), JSON.generate('name' => sname, 'key' => key, 'lots' => mirror.size,

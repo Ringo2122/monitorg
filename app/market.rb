@@ -1,10 +1,5 @@
 #!/usr/bin/env ruby
 # encoding: utf-8
-# Рыночный ориентир: ищет на Kufar похожие предложения по каждому лоту
-# и считает медиану, разброс и число совпадений.
-#
-# Сопоставление осознанно консервативное: если похожих меньше MIN_N,
-# ориентир не показывается вовсе — лучше ничего, чем цифра с потолка.
 require 'json'
 require 'shellwords'
 require 'erb'
@@ -14,16 +9,13 @@ Encoding.default_internal = Encoding::UTF_8
 UA    = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/140.0 Safari/537.36'
 DIR   = File.dirname(File.expand_path(__FILE__))
 MIN_N = 3
-CAT   = { 'avto' => '2010' }   # легковые авто на Kufar; остальное ищем текстом
+CAT   = { 'avto' => '2010' }
 
-# годы «±2» в формате Kufar (rgd=r:2008,2012) — и для поиска, и для ссылки «посмотреть похожие»
 def years_param(yr)
   yr ? '&rgd=' + ERB::Util.url_encode("r:#{yr - 2},#{yr + 2}") : ''
 end
 
 def kufar(query, cat, yr = nil)
-  # ERB::Util.url_encode, а не Shellwords: кириллицу и пробелы надо кодировать
-  # процентами, иначе Kufar игнорирует запрос и отдаёт выдачу по умолчанию.
   url = 'https://api.kufar.by/search-api/v2/search/rendered-paginated?size=40&query=' +
         ERB::Util.url_encode(query) + years_param(yr)
   url += "&cat=#{cat}" if cat
@@ -33,11 +25,9 @@ rescue StandardError
   {}
 end
 
-# объявление годится, если это продажа, с ценой и его заголовок реально
-# содержит слова запроса — иначе в медиану попадает случайный товар
 def relevant?(ad, words)
   return false if ad['price_byn'].to_i <= 0
-  return false if ad['type'] && ad['type'] != 'sell'   # аренда: цена за сутки/месяц
+  return false if ad['type'] && ad['type'] != 'sell'
   cat = (ad['ad_parameters'] || []).find { |p| p['p'] == 'category' }
   cv = (cat && (cat['vl'] || cat['v'])).to_s
   return false if cv =~ /Спрос|Аренд|Услуг|Запчаст|Шины|диски/i
@@ -45,7 +35,6 @@ def relevant?(ad, words)
   words.all? { |w| subj.include?(w.downcase) }
 end
 
-# "Volkswagen Caddy, 2009" -> ["Volkswagen Caddy", 2009]
 def split_name(name)
   year = name[/\b(19[89]\d|20[0-2]\d)\b/]
   base = name.sub(/,?\s*\b(19[89]\d|20[0-2]\d)\b/, '')
@@ -54,19 +43,14 @@ def split_name(name)
   [words.first(3).join(' '), year&.to_i]
 end
 
-# beltorgi пишет в названии всё подряд («Автомобиль легковой универсал BMW X6, 2017 г.в., VIN…»),
-# зато марка и год лежат в карточке отдельными строками — берём их
 def query_of(l)
   return split_name(l['name']) if l['platform'] == 'e-auction.by'
   rows = (l['details'] || Store.details(l['key'])).flat_map { |s| s['rows'] }
   yr = ((rows.find { |k, _| k =~ /^Год/ } || [])[1].to_s[/\d{4}/] || l['name'][/\b(19[89]\d|20[0-2]\d)\b/])&.to_i
   mark = (rows.find { |k, _| k == 'Марка' } || [])[1]
   model = (rows.find { |k, _| k == 'Модель' } || [])[1]
-  # марка вместе с моделью: по одной марке («Claas», «Renault») Kufar отдаёт запчасти и машины любых лет.
-  # ИПМ: «Легковой седан VOLKSWAGEN PASSAT, 4700 ВР-1 (…)» — марка и модель латиницей
   q = mark ? [mark, model].compact.join(' ') : l['name'][/\b[A-Z][A-Za-z\-]+(?:\s+[A-Za-z0-9\-]+)?/].to_s
   q = q.gsub(/\s+/, ' ').strip.split.first(3).join(' ')
-  # без года медиана смешает машины разных поколений — такой ориентир хуже, чем никакого
   yr ? [q, yr] : ['', nil]
 end
 
@@ -81,11 +65,7 @@ def median(a)
 end
 
 require_relative 'store'
-# Считаем только активные лоты без свежего ориентира: новые и те, что проверялись
-# больше REFRESH_DAYS назад. Иначе каждый прогон — сотни запросов к Kufar.
 REFRESH_DAYS = 14
-# MV — версия правил подбора: ориентиры, посчитанные по старым правилам, пересчитываем (не больше CAP за прогон —
-# у каждого запроса пауза, чтобы не нагружать Kufar)
 MV = 2
 CAP = 250
 NOW = Time.now.to_i
@@ -93,8 +73,6 @@ lots = Store.load
 found = 0
 checked = 0
 
-# "Погрузчик электрический" сравнивать не с чем: такие слова подтягивают
-# всю категорию. Нужен опознавательный признак модели — латиница или цифры.
 def specific?(query)
   query.split(/\s+/).any? { |w| w =~ /[A-Za-z]{2,}|\d/ }
 end
@@ -107,7 +85,6 @@ lots.each_with_index do |l, i|
   l['market_at'] = NOW
   l['market_v'] = MV
   q, yr = query_of(l)
-  # нужны марка и модель (два слова) с латиницей или цифрами; иначе ориентира нет — и старый убираем
   if q.length < 4 || q.split.size < 2 || !specific?(q)
     l.delete('market')
     next
@@ -116,13 +93,13 @@ lots.each_with_index do |l, i|
   res = kufar(q, CAT[l['section']], yr)
   ads = res['ads'] || []
 
-  key = q.split(/\s+/).first(2)                    # марка и модель должны быть в заголовке
+  key = q.split(/\s+/).first(2)
   prices = ads.map do |a|
     next nil unless relevant?(a, key)
     byn = a['price_byn'].to_i / 100.0
     next nil if byn < 100 || byn > 5_000_000
     ay = year_of(a)
-    next nil if yr && (ay.nil? || (ay - yr).abs > 2)   # только с годом и в пределах двух лет: у запчастей года нет
+    next nil if yr && (ay.nil? || (ay - yr).abs > 2)
     byn
   end.compact
 
@@ -136,13 +113,12 @@ lots.each_with_index do |l, i|
       'query' => q,
       'year' => yr,
       'source' => 'kufar.by',
-      # та же модель в тех же годах; Kufar перенаправляет на свой раздел с этими фильтрами
       'link' => 'https://www.kufar.by/l?' + (CAT[l['section']] ? "cat=#{CAT[l['section']]}&" : '') +
                 'query=' + ERB::Util.url_encode(q) + years_param(yr)
     }
     found += 1
   else
-    l.delete('market')                               # похожих мало — лучше без ориентира, чем с цифрой с потолка
+    l.delete('market')
   end
   STDERR.print "\r#{i + 1}/#{lots.size}, ориентиров #{found}"
   sleep 0.6

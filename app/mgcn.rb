@@ -1,22 +1,9 @@
 # encoding: utf-8
-#
-# mgcn.by — очные аукционы государственного предприятия «МГЦН» (г. Минск, ул. К. Маркса, 39, зал аукционов).
-# Аукцион — пост с таблицей; строка таблицы — предмет аукциона, у нас — отдельная карточка. Разделы сайта МГЦН:
-#   /auctions/rent/   право аренды помещений и открытых площадок          → «Право аренды»
-#   /auctions/place/  земельные участки: в аренду (№ …-А-…, …-У-…)          → «Право аренды»,
-#                     в собственность (по тексту поста)                     → «Недвижимость»
-#   /auctions/sale/   квартиры, машино-места, помещения                      → «Недвижимость»;
-#                     электронные торги этого раздела идут на minskestate.by — берём их там
-# Список раздела — одна страница со всеми постами с 2024 года; прошедшие помечены «завершен» — их не открываем.
-# Итогов онлайн нет: после аукциона лот уходит в архив с пометкой «итоги не публикуются».
-# Таблицы у постов разные — колонки узнаём по словам в заголовке (COLS); объединённые ячейки разворачиваем.
-# Ставка аренды («коэффициент спроса … или размер арендной платы в БАВ») разбирается в rent — расчёт на сайте.
 require_relative 'sources'
 
 module Mg
   BASE = 'https://mgcn.by'
   PARTS = %w[rent place sale].freeze
-  # порядок важен: «Начальная цена права … / сумма задатка» — цена; «Наименование, характеристики и местонахождение» — описание
   COLS = [['price', /начальная цена/i], ['deposit', /задат/i], ['rate', /коэффициент спроса|арендной платы/i],
           ['no', /\A№|номер предмета/i], ['lessor', /\Aарендодатель/i], ['kad', /кадастров/i], ['period', /период функцион/i],
           ['purpose', /целев/i], ['form', /форма объекта/i], ['term', /срок аренды/i], ['costs', /расходы на подготовку/i],
@@ -35,7 +22,6 @@ module Mg
     end
   end
 
-  # предстоящие посты раздела: [url, заголовок]
   def posts(part)
     html = Src.get("#{BASE}/auctions/#{part}/") or return nil
     html.split('w-auction-list__item').drop(1).reject { |x| x =~ /завершен/ }.map do |x|
@@ -44,7 +30,6 @@ module Mg
     end.compact
   end
 
-  # таблица → строки ячеек; rowspan/colspan разворачиваем
   def grid(tb)
     span = {}
     tb.scan(%r{<tr[^>]*>(.*?)</tr>}m).map do |(tr)|
@@ -69,17 +54,13 @@ module Mg
     x.to_f.round(4).to_s.sub(/\.0\z/, '').tr('.', ',')
   end
 
-  # «0,8 — первых 3 месяца; 1,5 — последующий период; 3 — при применении понижающих коэффициентов»,
-  # «2,5 — 1-й этаж, антресоль; 0,5 — подвал», «220,815 БАВ», «3 (386,55 БАВ за всю площадь)», «1,5 БАВ за 1 кв. м»,
-  # «за март, октябрь, ноябрь – 3 БАВ; за апрель–сентябрь – 4 БАВ» (в месяц за 1 кв. м)
   def rent(cell, head, area)
     t = cell.to_s.tr('–−', '——').gsub(/\s+/, ' ').strip
     return nil if t.empty?
     n = ->(s) { s.tr(',', '.').to_f }
-    return { 'k' => 'raw', 'raw' => t } if t =~ /\d\s*[х*×]\s*\d/   # «4,0 х 0,6», «0,5*3» — не по формуле, показываем как есть
+    return { 'k' => 'raw', 'raw' => t } if t =~ /\d\s*[х*×]\s*\d/
     if t =~ /БАВ/
       if head =~ /за 1 кв/i || t =~ /за 1 кв/i
-        # «за март, октябрь, ноябрь — 3 БАВ; за апрель—сентябрь — 4 БАВ», «В весенне-осенний период 3 БАВ за 1 кв. м, в период … 0,5 БАВ»
         parts = t.gsub(/\s*за\s+1\s*кв\.?\s*м\.?/i, '').split(/;\s*|,\s*(?=(?:в|за)\s)/i).map do |seg|
           m = seg.match(/\A(.*?)\s*—?\s*(\d+(?:,\d+)?)\s*БАВ/) or next
           { 'v' => n.(m[2]), 'what' => m[1].sub(/\A[\s,]*(?:за|в)\s+/i, '').strip }
@@ -91,7 +72,6 @@ module Mg
       return { 'k' => 'raw', 'raw' => t }
     end
     spec = { 'k' => 'ks', 'S' => area, 'steps' => [], 'parts' => [], 'raw' => t }
-    # «2,5 — 1-й этаж, 0,5 — подвал»: части бывают и через запятую; «2,5; (3 — при применении …)» — скобки вокруг части
     t.split(/;\s*|,\s+(?=\d+(?:,\d+)?\s*[—-])/).map { |s| s.strip.sub(/\A\((.*)\)\z/, '\1') }.reject(&:empty?).each do |seg|
       m = seg.match(/\A(\d+(?:,\d+)?)\s*(?:—|-)?\s*(.*)\z/) or return { 'k' => 'raw', 'raw' => t }
       ks = n.(m[1])
@@ -110,18 +90,15 @@ module Mg
     spec['steps'].empty? && spec['parts'].empty? ? { 'k' => 'raw', 'raw' => t } : spec
   end
 
-  # заголовок таблицы: строка, где узнаются цена и ещё хотя бы две колонки
   def columns(row)
     cols = {}
     row.each_with_index do |h, i|
       k = (COLS.find { |_, re| h =~ re } || [])[0] or next
-      # несколько колонок цены (квартира, машино-место, предмет) — ценой считаем цену предмета
       cols[k] = i if !cols[k] || (k == 'price' && h =~ /предмет/i)
     end
     cols['price'] && cols.size >= 3 ? cols : nil
   end
 
-  # имя карточки по строке таблицы; term — срок аренды земли
   def name_of(sec, land, v, area_m2, hdr, term, build)
     d = v['desc'].to_s
     if land
@@ -145,12 +122,10 @@ module Mg
     end
   end
 
-  # предметы одного поста → карточки для update.rb (подробности уже внутри — страницу второй раз не открываем)
   def items(url, title, part, html)
-    main = html[%r{<main.*</main>}m].to_s.tr(" ", ' ')   # неразрывные пробелы в суммах: «652 349,28»
+    main = html[%r{<main.*</main>}m].to_s.tr(" ", ' ')
     t = Src.txt(main)
     id = html[/postid-(\d+)/, 1] or return []
-    # электронные торги раздела «в собственность» — на minskestate.by
     return [] if part == 'sale' && (title =~ /электронн/i || main !~ /<table/)
     land = part == 'place'
     sec = case part
@@ -194,11 +169,11 @@ module Mg
       rows[(hi + 1)..].each_with_index do |r, i|
         v = cols.map { |k, j| [k, r[j].to_s.strip] }.to_h.reject { |_, x| x.empty? || x == '—' }
         if v['price'].to_s =~ /отмен|снят/i
-          next   # предмет снят с аукциона — карточки нет (известная уйдёт в архив «снят»)
+          next
         end
         price = num(v['price'])
         unless price.positive? && (v['no'].nil? || v['no'] =~ /\A\d+\z/)
-          notes << r.uniq.join(' ') if r.uniq.size <= 2 && !r.join.empty?   # «Отдельные условия …» — общее для поста
+          notes << r.uniq.join(' ') if r.uniq.size <= 2 && !r.join.empty?
           next
         end
         n = v['no'] || (i + 1).to_s
@@ -221,7 +196,7 @@ module Mg
                 'name' => name_of(sec, land, v, area_m2, "#{hdr.join(' ')} #{title}", lterm, title =~ /строительств/i), 'price' => price,
                 'req_to' => req, 'torg' => torg }
         rec['d'] = { 'details' => secs, 'location' => addr, 'req_to' => req, 'torg' => torg, 'debtor' => lessor.to_s.empty? ? nil : lessor,
-                     'photos' => [],   # фото МГЦН не публикует: пустой список — pics.rb не будет искать галерею
+                     'photos' => [],
                      'area_num' => land ? (num(v['area']) * 10_000).round : area_m2,
                      'terms' => dep ? { 'deposit' => dep, 'v' => 2 } : { 'v' => 2 },
                      'rent' => sec == 'arenda' && v['rate'] ? rent(v['rate'], hdr[cols['rate']], area_m2) : nil }
@@ -233,7 +208,6 @@ module Mg
     out
   end
 
-  # все предстоящие предметы раздела; nil — список не прочитан
   def list(part)
     ps = posts(part) or return nil
     ps.flat_map do |u, title|

@@ -1,7 +1,4 @@
 # encoding: utf-8
-#
-# Связь робота с базой админки (Supabase). Адрес, публичный ключ и ключ робота — из окружения:
-# SB_URL, SB_KEY, SB_TOKEN (секреты GitHub). Без них робот работает как раньше, без админки.
 require 'net/http'
 require 'json'
 require 'uri'
@@ -19,7 +16,7 @@ module Sb
     r['apikey'] = ENV['SB_KEY']
     r['x-admin-token'] = ENV['SB_TOKEN']
     r['Content-Type'] = 'application/json'
-    r['Accept-Encoding'] = 'identity'   # со сжатием Ruby не распаковывает ответ, если в нём есть Content-Range
+    r['Accept-Encoding'] = 'identity'
     r['Prefer'] = prefer if prefer
     r.body = JSON.generate(body) if body
     res = nil
@@ -36,7 +33,6 @@ module Sb
     req('get', path)
   end
 
-  # все строки таблицы: сервер отдаёт не больше 1000 за раз
   def all(table, select = '*')
     out = []
     loop do
@@ -47,7 +43,6 @@ module Sb
     out
   end
 
-  # число строк без самих строк (HEAD, Prefer: count=exact) — сверка копии итогов торгов (statsfile.rb)
   def count(table)
     u = URI("#{ENV['SB_URL']}/rest/v1/#{table}?select=key")
     r = Net::HTTP::Head.new(u)

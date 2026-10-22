@@ -1,9 +1,4 @@
 # encoding: utf-8
-#
-# Разделы и подразделы каталога (решение Артёма от 09.10.2026): каждому лоту — подраздел вида «transport/legkovye».
-# Определяем по разделу площадки (section), рубрике площадки (sub_ru) и словам в названии; у грузовиков, спецтехники
-# и больших фургонов — ещё по карточке лота (поле «Тип кузова», «пассажирский», «фургон»…).
-# Дерево уходит на сайт целиком (CFG.cats): меню «Весь каталог», страницы разделов, фильтр, подпись на карточке.
 module Cats
   TREE = [
     ['transport', 'Транспорт и техника', 'avto', [
@@ -21,18 +16,15 @@ module Cats
       ['pomeshcheniya', 'Помещения'], ['zemlya', 'Земельные участки'], ['ploshchadki', 'Открытые площадки'], ['drugoe', 'Другое']]]
   ].freeze
 
-  # для сайта: [{k, n, ic, subs: [{k, n}]}]
   def self.tree
     TREE.map { |k, n, ic, subs| { 'k' => k, 'n' => n, 'ic' => ic, 'subs' => subs.map { |sk, sn| { 'k' => sk, 'n' => sn } } } }
   end
 
-  # подраздел из админки («transport/legkovye») — только из дерева выше
   def self.valid?(s) TREE.any? { |k, _, _, subs| subs.any? { |sk, _| s == "#{k}/#{sk}" } } end
 
-  L = '(?<![а-яё])'   # «начало слова» для кириллицы: \b в Ruby её не понимает
+  L = '(?<![а-яё])'
   def self.rx(s) Regexp.new(s.gsub('\\b<', L), Regexp::IGNORECASE) end
 
-  # латинские буквы-двойники внутри русских слов («Kомбайн» с латинской K на belauction) → русские
   LAT = 'AaBCcEeHKkMOoPpTXxy'
   CYR = 'АаВСсЕеНКкМОоРрТХху'
   def self.norm(s) s.to_s.gsub(/(?<=[а-яёА-ЯЁ])[#{LAT}]+|[#{LAT}]+(?=[а-яёА-ЯЁ])/) { |w| w.tr(LAT, CYR) } end
@@ -44,15 +36,13 @@ module Cats
   TRAILER = rx('полуприцеп|\b<прицеп(?!н)|п/прицеп')
   SPEC = rx('погрузчик|экскаватор|кран|бульдозер|грейдер|каток|манипулятор|автовышк|мусоровоз|ассениз|эвакуатор|форвардер|харвестер')
   TRUCK_BODY = rx('самосвал|тягач|седельн|цистерн|бортов|фургон|рефрижер|изотерм')
-  # большие фургоны бывают грузовыми и пассажирскими
   VANS = /crafter|sprinter|transit|ducato|boxer|jumper|\bmaster\b|movano|\bdaily\b|газел|gazel|соболь|\blt ?(28|35|46)\b|vario/i
   VAN_PAS = /пассажир|микроавтобус|автобус|\d+\s*(пасс|посадочн|мест)|classi[ck]bus|kombi|tourneo|combi/i
   VAN_CAR = /грузов|фургон|бортов|рефриж|изотерм|цельнометалл|kasten|самосвал|эвакуат|шасси/i
 
-  # недвижимость: [подраздел, рубрика площадки (sub_ru), слова в названии] — по порядку
   NED = [
     ['kvartiry', 'Квартиры и комнаты', '\b<квартир[аы ]|\b<комнат'],
-    ['doma', 'Дома', 'жил(ой|ого|ые) дом|коттедж|\b<дач[аи]|садов(ый|ого) дом'],   # «изолированное помещение» — почти всегда нежилое (12.10), квартиры ловит «квартир»
+    ['doma', 'Дома', 'жил(ой|ого|ые) дом|коттедж|\b<дач[аи]|садов(ый|ого) дом'],
     ['zemlya', 'Земельные участки', '\A\s*земельн'],
     ['garazhi', 'Гаражи|Машиноместа', 'гараж|машино-?мест|стоянк'],
     ['selhoz', nil, 'коровник|ферм[аы]|телятник|свинарник|зернохран|зерносклад|сенаж|силос|птичник|конюш|кормоцех|зерносуш|мтф|молочно-?товар|овощехран'],
@@ -76,8 +66,6 @@ module Cats
   AREN = [['pomeshcheniya', rx('помещени|здани|строени|офис|магазин|кафе|киоск|павильон')], ['zemlya', rx('земельн|участ')],
           ['ploshchadki', rx('площадк|территори|стоянк')]].freeze
 
-  # значения строк карточки лота одной строкой (без названий строк: «Количество посадочных мест: 3» у грузового фургона —
-  # не признак пассажирского); details — ->(key) { [{h, rows}] }
   def self.card_text(l, details)
     details.call(l['key']).flat_map { |s| s['rows'] || [] }.map { |r| r.last.to_s }.join(' ')
   end
@@ -88,18 +76,15 @@ module Cats
     car = t =~ VAN_CAR
     return 'avtobusy' if pas && !car
     return 'gruzovye' if car
-    sec == 'gruz' ? 'gruzovye' : 'avtobusy'   # подсказок нет: площадка ставит в «легковые», если в техпаспорте легковой или автобус
+    sec == 'gruz' ? 'gruzovye' : 'avtobusy'
   end
 
-  # подраздел лота: «transport/legkovye»
   def self.of(l, details)
     nm = norm(l['name'])
     case l['section']
     when 'avto'
       return 'transport/prochij' if nm =~ rx('\A\s*(мотоцикл|мопед|скутер|квадроцикл)')
       return 'transport/selhoztehnika' if nm =~ rx('\A\s*трактор')
-      # прицепы, выставленные «легковыми» (21.10, konfiskat: Krone, Fisso, Grew Opalenica, МАЗ 993920) — по названию,
-      # марке прицепов или строке карточки «Тип транспорта: Прицепы полуприцепы»
       return 'transport/pricepy' if nm =~ rx('\A\s*(полу)?прицеп|krone|fisso|grew|opalenica|schmitz|k[oö]gel|wielton|\A\s*99\d{4}\b') ||
                                     card_text(l, details) =~ rx('прицепы\s+полуприцепы')
       return 'transport/' + van(nm, card_text(l, details), 'avto') if nm =~ VANS
@@ -120,7 +105,6 @@ module Cats
     when 'nedvizhimost'
       sub = l['sub_ru'].to_s
       k = NED.find { |_, sr, _| sr && sub =~ sr }
-      # незавершёнка без назначения («незавершённое капитальное строение в д. …») — в «Прочие»: общие слова не считаем
       nm2 = nm =~ /незаверш/i ? nm.gsub(/капитальн\S*|строени\S*|здани\S*|объект\S*|строительств\S*/i, ' ') : nm
       k ||= NED.find { |_, _, w| nm2 =~ w }
       'nedvizhimost/' + (k ? k[0] : 'prochie')

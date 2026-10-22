@@ -1,33 +1,4 @@
 # encoding: utf-8
-#
-# Итоги торгов: за сколько ушёл лот, сколько было ставок и участников. Робот заглядывает на площадку
-# после даты торгов и повторяет, пока итоги не опубликуют (update.rb, раздел «итоги торгов»).
-#
-# Результат — хеш:
-#   st      sold (продан) | single (продан единственному участнику) | failed (не состоялись)
-#           | cancelled (отменены) | pending (итогов ещё нет)
-#   start   начальная цена, BYN        price  цена продажи, BYN
-#   bids    ставок                     users  участников
-#   v       версия разбора: итоги старой версии робот перепроверяет
-#
-# Участники: если площадка пишет их число текстом (ИПМ: «количество участников 17») — берём его;
-# иначе считаем уникальные номера участников по ПОЛНОМУ ходу торгов. На странице лота площадки часто
-# показывают только последние ставки — полный список берём так же, как его раскрывает кнопка площадки.
-#   at      когда закончились торги    note   пояснение площадки
-#
-# Где берём:
-#   e-auction.by  служебный запрос страницы лота ajax_auctions.php?type=get-info&eid=… (JSON): статус, ставки
-#   ipmtorgi.by   блок «Результаты торгов» на странице лота: цена продажи, победитель, ход торгов
-#   beltorgi.by   строка статуса на странице лота: «Торги состоялись», «приобретен единственным участником»…
-#   konfiskat.by  торги идут на torgikonfiskat.by — ссылка на них есть на странице лота konfiskat.by
-#   belauction.by страница лота после закрытия: «Аукцион закрыт по цене», таблица ставок с победителем
-#   minskestate.by статус на странице лота («Продано», «Торги не состоялись») и «Хронология торгов»
-#   auction24.by  «Статус» на странице лота и вкладка «Ход торгов»
-#   lotsale.by    API лота: статус лота и аукциона, ставки, число участников
-#   butb.by       «Состояние лота», «Цена продажи» и «Зарегистрировано заявлений» в карточке лота
-#   gostorg.by    вкладка «История аукциона»: состояние, заявки, ставки (только электронные торги)
-#   bankrot-torg.by, specrealization.by  данные страницы лота (статус, ставки с победителем, причина)
-#   mgcn.by       очные аукционы — итоги онлайн не публикуются, не проверяем
 require 'json'
 require_relative 'sources'
 
@@ -42,12 +13,10 @@ module Res
         .gsub(/<[^>]+>/, ' ').gsub(/&#160;|&nbsp;|&#032;/, ' ').gsub(/\s+/, ' ')
   end
 
-  # ── e-auction ──
   def ea_eid(html)
     html.to_s[/name="eid" value="(\d+)"/, 1]
   end
 
-  # host — e-auction.by или etpvit.by (тот же движок, тот же служебный запрос)
   def ea_info(eid, host = Src::EA)
     out = IO.popen(['curl', '-sS', '-m', '30', '-A', Src::UA, '-H', 'X-Requested-With: XMLHttpRequest',
                     "#{host}/local/include/ajax_auctions.php?type=get-info&eid=#{eid}"], err: File::NULL, &:read)
@@ -56,7 +25,6 @@ module Res
     nil
   end
 
-  # онлайн-торги e-auction идут не в день окончания приёма заявок, а по отдельному расписанию
   def ea_torg(info)
     e = info && info.dig('lot_info', 'element') or return nil
     e['TIME_START_BIDDING'].to_i.positive? ? e['TIME_START_BIDDING'].to_i : nil
@@ -66,7 +34,7 @@ module Res
     e = info && info.dig('lot_info', 'element') or return nil
     list = info.dig('lot_info', 'list') || []
     bids = list.map { |b| b['UF_BID'].to_f }
-    users = list.map { |b| b['UF_USER_CODE'] }.compact.uniq.size   # числа участников текстом у e-auction нет
+    users = list.map { |b| b['UF_USER_CODE'] }.compact.uniq.size
     st = case e['LOT_STATUS'].to_i
          when 20 then users == 1 ? 'single' : 'sold'
          when 21 then 'failed'
@@ -81,8 +49,6 @@ module Res
     r
   end
 
-  # ── ИПМ-Торги ──
-  # ссылка «Посмотреть все ставки» (на странице лота — только последние); ставок нет — окно не нужно (у ИПМ каждый запрос ~5 с)
   def ipm_all_bids(html)
     u = ipm_all_bids_url(html) or return nil
     html.to_s.include?('Пользователь с ID') ? Src.get(u, min: 1, tries: 1) : nil
@@ -102,8 +68,6 @@ module Res
     price = blk[/Цена продажи:\s*([\d\s.,]+?)\s*BYN/, 1]
     users = shown.positive? ? shown : rows.map { |r| r[1] }.uniq.size
     at = Src.ts(blk[/(\d{2}\.\d{2}\.\d{4}\s+\d{1,2}:\d{2})/, 1])
-    # ИПМ не пишет итог, если заявок не было: в «Результатах торгов» только дата и цены. Неделя после торгов
-    # без цены продажи, победителя и ставок — торги не состоялись
     silent = !price && rows.empty? && blk !~ /Победитель/ && at && at < Time.now.to_i - 7 * 86_400
     st = if price then users == 1 ? 'single' : 'sold'
          elsif blk =~ /Победитель:\s*Не выявлен/ || silent then 'failed'
@@ -116,22 +80,21 @@ module Res
     r
   end
 
-  # ── Белреализация ──
   def bt_result(html)
     t = text(html)
     seg = t[/Допущено участников.{0,1800}/].to_s
     st = if seg =~ /Торги состоялись/ then 'sold'
          elsif seg =~ /приобретен единственным участником/i then 'single'
-         elsif seg =~ /Торги не состоялись|не подтвердил приобретение/i then 'failed'   # «Ед. участник не подтвердил приобретение»
+         elsif seg =~ /Торги не состоялись|не подтвердил приобретение/i then 'failed'
          elsif seg =~ /Торги отменены|снят с торгов|Торги приостановлены/i then 'cancelled'
-         elsif seg =~ /Прием заявок на участие/ then return nil   # перевыставлен — это уже новые торги
+         elsif seg =~ /Прием заявок на участие/ then return nil
          else 'pending'
          end
     r = { 'v' => V, 'st' => st, 'start' => Src.num(seg[/Начальная цена\s*([\d\s,]+?)\s*бел/, 1]) }
     if (p = seg[/Цена продажи\s*([\d\s,]+?)\s*бел/, 1])
       r['price'] = Src.num(p)
     end
-    all = seg[/Ставки участников(.*)/, 1].to_s.scan(/\(участник №\s*(\d+)/).flatten   # на странице все ставки
+    all = seg[/Ставки участников(.*)/, 1].to_s.scan(/\(участник №\s*(\d+)/).flatten
     r['bids'] = all.size if all.any?
     users = [seg.scan(/Допущено участников\s*(\d+)/).flatten.map(&:to_i).max.to_i, all.uniq.size, st == 'single' ? 1 : 0].max
     r['users'] = users if users.positive?
@@ -142,18 +105,12 @@ module Res
     r
   end
 
-  # ── belauction.by ──
-  # Продан — «Аукцион закрыт по цене: …» и в таблице ставок есть «Победитель»; ставок нет — не состоялись.
-  # Начальной цены площадка не показывает, а первая ставка символическая (1 001 BYN у машины за 24 801) — «к начальной»
-  # не считаем: start не пишем, первая ставка — в first. Участники — разные имена в ставках
-  # (сами имена — телефоны; не храним, только считаем).
   def ba_result(html)
     t = text(html)
     closed = t =~ /Аукцион закрыт|Торги завершены|Аукцион завершен/i
     end_t = html[/id=ending[^>]*>\s*(\d{9,})/, 1].to_i
     end_t = Src.ru_date(t[/Завершение торгов:\s*(\d{1,2} [а-я]+ \d{4})/, 1]) unless end_t.positive?
     return { 'st' => 'pending' } unless closed || (end_t && end_t < Time.now.to_i - 3600)
-    # ставки: <tbody id=tablebid><tr><th>имя</th><th>сумма BYN</th><th>дата</th><th>Да — победитель</th></tr>
     rows = html.to_s[%r{<tbody\s+id=tablebid>(.*?)</tbody>}m, 1].to_s.scan(%r{<tr[^>]*>(.*?)</tr>}m).map { |(r)| r.scan(%r{<th[^>]*>(.*?)</th>}m).flatten.map { |c| text(c).strip } }
     bids = rows.select { |r| r.size >= 2 }.map { |r| [r[0], Src.num(r[1])] }.select { |_, v| v.positive? }
     won_row = rows.find { |r| r[3].to_s.start_with?('Да') }
@@ -167,9 +124,6 @@ module Res
     r
   end
 
-  # ── auction24.by ──
-  # «Статус»: продано / не состоялись / отменены; «Количество участников, допущенных к торгам»; вкладка «Ход торгов» (#hod) —
-  # строки «время — событие — цена»: «Участник №3858 изъявил желание приобрести лот за …», ставки; последняя — цена продажи
   def a24_result(html)
     f = html.to_s.scan(%r{<tr><td>(.*?)</td><td>(.*?)</td>}m).map { |k, v| [Src.txt(k), Src.txt(v)] }.to_h
     st = f['Статус'].to_s
@@ -189,9 +143,6 @@ module Res
     r.reject { |_, v| v.nil? || v == 0 }
   end
 
-  # ── minskestate.by ──
-  # Статус лота: «Продано», «Торги не состоялись», «Отменены»; «Хронология торгов» — все ставки (время, сумма, номер участника),
-  # сверху — последняя. «Количество участников допущенных к торгам» — число участников.
   def me_result(html)
     f = html.to_s.scan(%r{productCustomFieldName"><span>(.*?)</span></div>\s*<div class="productCustomFieldVal">(.*?)</div>}m)
             .map { |k, v| [Src.txt(k), Src.txt(v)] }.to_h
@@ -211,9 +162,6 @@ module Res
     r.reject { |_, v| v.nil? || v == 0 }
   end
 
-  # ── lotsale.by ──
-  # API лота (Src.ls_lot → 'a'): статус лота «Продан» / «Не продан», статус аукциона «Завершён»; ставки — bids (номер участника,
-  # сумма), участников — biddersCount. Продан единственному участнику — «Торги не состоялись» с лотом «Продан».
   def ls_result(a)
     return { 'st' => 'pending' } unless a
     lot = a['lot'] || {}
@@ -233,10 +181,6 @@ module Res
     r.reject { |_, v| v.nil? || v == 0 || v == '' }
   end
 
-  # ── butb.by (et.butb.by) ──
-  # «Состояние лота»: «Результативные» — продан; «Несостоявшиеся (лот продан)» — единственному участнику по цене +5%;
-  # «Несостоявшиеся», «Нерезультативные» — не состоялись; «Торги отменены». Ставок площадка не показывает —
-  # только «Цена продажи» и «Зарегистрировано заявлений».
   def bu_result(html)
     top = html.to_s.scan(%r{lot-block-text">(.*?)</div>\s*<span class="lot-block-value[^"]*"[^>]*>(.*?)</span>}m)
               .map { |k, v| [Src.txt(k), Src.txt(v)] }.to_h
@@ -253,9 +197,6 @@ module Res
     r.reject { |_, v| v.nil? || v == 0 }
   end
 
-  # ── bankrot-torg.by, specrealization.by ──
-  # props.auction страницы лота: статус (accepting — приём заявок, not_finished — «Торги не состоялись», annulled — результат
-  # аннулирован, …), ставки bets [{user_id, bet, winner}], reason — причина. Победитель есть — продан; участник один — единственному.
   def vl_result(html)
     d = html.to_s[/data-page="([^"]+)"/, 1] or return { 'st' => 'pending' }
     a = JSON.parse(Src.decode(d))['props']['auction'] or return { 'st' => 'pending' }
@@ -276,9 +217,6 @@ module Res
     { 'st' => 'pending' }
   end
 
-  # ── torgi.gov.by ──
-  # /api/auctions/<аукцион>/lot/<лот>/public: state («Published» — до торгов), winners [{lot, winners: [{summ (копейки), buyer}]}],
-  # bids, bidders. Победитель с суммой — продан; иначе после торгов — не состоялись.
   def tg_result(a, lot_id)
     return { 'st' => 'pending' } unless a
     st = a['state'].to_s
@@ -297,9 +235,6 @@ module Res
     r.reject { |_, v| v.nil? || v == 0 }
   end
 
-  # ── expert-torgi.by, realtorgi.by ──
-  # «Статус:» на странице лота: «Продано», «Торги не состоялись», «Лот отменён», «Лот аннулирован»; «Текущая цена» — цена
-  # продажи, «Участников: N».
   def jm_result(html)
     t = Src.txt(html.to_s.gsub(/<script.*?<\/script>/m, ''))
     st = t[/Статус:\s*(.{3,40}?)\s+Текущая цена/, 1].to_s
@@ -315,9 +250,6 @@ module Res
     r.reject { |_, v| v.nil? || v == 0 }
   end
 
-  # ── iintorgi.by ──
-  # /admin/api/admin/lot/<id>: status — «Торги состоялись», «Приобретен единственным участником», «Торги не состоялись»,
-  # «Отмененные торги», «Торги аннулированы»; price_current — цена продажи, users_count — участники.
   def ii_result(x)
     return { 'st' => 'pending' } unless x
     st = x['status'].to_s
@@ -333,10 +265,6 @@ module Res
     r.reject { |_, v| v.nil? || v == 0 }
   end
 
-  # ── gostorg.by ──
-  # Вкладка «История аукциона»: «Состояние» («До старта торгов», «Принятие заявок на участие», «Торги завершены»…),
-  # «Принято заявлений / Зарегистрировано участников», таблица ставок (№, дата, ставка, № участника). Очные торги — без итогов
-  # (робот их не проверяет). Ставок нет — торги не состоялись: продажу единственному участнику площадка отдельно не показывает.
   def gs_result(html)
     secs = Src.gs_fields(html.to_s)
     h = (secs.find { |s| s['h'] =~ /История аукциона/ } || { 'rows' => [] })['rows'].to_h
@@ -356,7 +284,6 @@ module Res
     r.reject { |_, v| v.nil? || v == 0 }
   end
 
-  # ── konfiskat.by → torgikonfiskat.by ──
   def kf_tk_url(html)
     u = html.to_s[%r{href="(https?://torgikonfiskat\.by/[a-z-]*auction/\d+/?)"}, 1]
     u && u.sub('http://', 'https://')
