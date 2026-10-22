@@ -26,7 +26,7 @@ require_relative 'mgcn'
 require_relative 'bav'
 require 'fileutils'
 
-RETAIN_DAYS = (ENV['RETAIN_DAYS'] || 365).to_i
+RETAIN_DAYS = (ENV['RETAIN_DAYS'] || 548).to_i   # 18 месяцев (решение Артёма 21.10, SEO: архив показываем поиску 18 мес.)
 MAXV = 800   # длинные значения (порядок оплаты, ответственность) обрезаем
 WORKERS = { 'e-auction.by' => 3, 'ipmtorgi.by' => 2, 'beltorgi.by' => 3, 'konfiskat.by' => 1, 'belauction.by' => 1,
             'minskestate.by' => 1, 'mgcn.by' => 1, 'auction24.by' => 1, 'lotsale.by' => 1, 'butb.by' => 1, 'gostorg.by' => 2,

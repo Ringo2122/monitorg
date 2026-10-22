@@ -9,7 +9,7 @@
 <meta name="description" content="__DESC__">
 <meta property="og:type" content="website"><meta property="og:site_name" content="__BRAND__"><meta property="og:title" content="__TITLE__"><meta property="og:description" content="__SHORT__">
 <link rel="stylesheet" href="/fonts/fonts.css?v=1">
-<link rel="icon" href="favicon.ico?v=3" sizes="32x32"><link rel="icon" href="favicon.svg?v=3" type="image/svg+xml"><link rel="apple-touch-icon" href="apple-touch-icon.png?v=3">
+<link rel="icon" href="/favicon.ico?v=3" sizes="32x32"><link rel="icon" href="/favicon.svg?v=3" type="image/svg+xml"><link rel="apple-touch-icon" href="/apple-touch-icon.png?v=3">
 <script>
 /* Общий стиль из админки («Главная страница» → «Общий стиль»): фирменный цвет, скругление углов, шрифт заголовков.
    Стоит до основных стилей, поэтому селекторы сильнее (html:root) — иначе основные перекрыли бы. Тот же код — в предпросмотре админки */
@@ -604,7 +604,7 @@ applyTheme(window.THEME);
   /* ── переходы между страницами ── */
   #bar{position:fixed;top:0;left:0;height:3px;width:0;background:var(--accent);z-index:100;opacity:0;pointer-events:none}
   #bar.go{opacity:1;width:72%;transition:width .45s cubic-bezier(.2,.7,.3,1)}
-  #bar.done{opacity:0;width:100%;transition:width .2s ease,opacity .35s ease .15s}
+  #bar.done{opacity:0;width:100%;padding:0;transition:width .2s ease,opacity .35s ease .15s}   /* padding:0 — иначе .done (блок «Заявка отправлена») раздувал полоску до 23 px (22.10) */
   #app.vt{view-transition-name:page}   /* только на время перехода: иначе фильтр-шторка уходит под шапку */
   ::view-transition-old(root),::view-transition-new(root){animation:none}
   ::view-transition-old(page){animation:vt-out .15s ease both}
@@ -1007,6 +1007,8 @@ applyTheme(window.THEME);
   .privacy{max-width:72ch}
   .privacy p{margin:0 0 14px;line-height:1.65}
   .privacy h2{font-size:18px;margin:26px 0 10px}
+  .privacy h3{font-size:15.5px;margin:20px 0 8px} .privacy h4{font-size:14.5px;margin:14px 0 6px}
+  .privacy p.kv{margin:0 0 6px} .privacy ul{margin:0 0 14px;padding-left:22px} .privacy li{margin:0 0 6px;line-height:1.6}
   .privacy .tw{overflow-x:auto;margin:0 0 14px} .privacy table{font-size:13px}
   .svc-p{margin:6px 0 0;font-weight:600;color:var(--brand)}
   /* ── личный кабинет ── */
@@ -1286,7 +1288,7 @@ applyTheme(window.THEME);
 
 <header class="main"><div class="wrap hrow">
   <a class="logo" href="#/">
-    <img class="mark ml" src="logo-mark.png" alt=""><img class="mark md" src="logo-mark-dark.png" alt="">
+    <img class="mark ml" src="/logo-mark.png" alt=""><img class="mark md" src="/logo-mark-dark.png" alt="">
     <span class="lt"><span class="nm">МониТорг</span><span class="sub">Первый агрегатор<br>торгов Беларуси</span></span>
   </a>
 <nav class="hnav" aria-label="Разделы сайта"><ul id="nav"></ul></nav>
@@ -1347,12 +1349,71 @@ applyTheme(window.THEME);
 <div class="ck" id="ck" role="region" aria-label="Файлы cookie" hidden><span id="ck-t"></span> <a href="#/cookies">Подробнее</a><span class="ck-b"><button class="btn pri" id="ck-ok" type="button">Принять все</button><button class="btn ck-no" id="ck-no" type="button">Отклонить</button></span></div>
 
 <script>
-const DATA = __DATA__;
-const SNAP = __SNAP__;
-const ARCHN = __ARCHN__;          // размер архива по разделам (cut — граница свежего архива), сам архив — в arch.js и arch2.js
-const CFG = __CFG__;              // из админки: тексты, правила калькулятора, часы обновления, выключенные разделы
-const NPLAT = __NPLAT__;          // сколько всего площадок подключено (с активными лотами и в архиве)
-const PLACES = __PLACES__;        // города и районы внутри областей — второй уровень фильтра «Регион» (regions.rb)
+const DATA = window.MT_DATA;
+const SNAP = window.MT_SNAP;
+const ARCHN = window.MT_ARCHN;          // размер архива по разделам (cut — граница свежего архива), сам архив — в arch.js и arch2.js
+const CFG = window.MT_CFG;              // из админки: тексты, правила калькулятора, часы обновления, выключенные разделы
+const NPLAT = window.MT_NPLAT;          // сколько всего площадок подключено (с активными лотами и в архиве)
+const PLACES = window.MT_PLACES;        // города и районы внутри областей — второй уровень фильтра «Регион» (regions.rb)
+/* ───────── адреса (22.10.2026, SEO — этап 3) ─────────
+   Приложение живёт на настоящих адресах: /transport/legkovye/, /lot/<имя>-<номер>/, /catalog, /me … Внутри — прежние
+   «маршруты» (/c/transport/legkovye, /lot/<id>), так что страницы не переписывались. Готовая SEO-страница сама говорит,
+   какой маршрут показывает (<meta name="mt-route">) — разгадывать адреса вида /transport/legkovye/gomel/ не нужно.
+   Ссылки href="#/…" в разметке переписываются в настоящие (fixLinks), клик по ним — без перезагрузки (nav).
+   Старые ссылки с # (письма, Telegram, вход по ссылке) — открывают ту же страницу уже по новому адресу */
+const MT_META = (document.querySelector('meta[name="mt-route"]') || {}).content || '';
+const MT_PATH0 = location.pathname;
+// заголовок готовой страницы (с городом, «торги в Беларуси», датой торгов) — её же оставляем, пока человек на ней
+const MT_T0 = MT_META ? document.title : '', MT_Q0 = location.search;
+// маршрут → адрес. Лот — по его «u» (имя-номер, как у SEO-страницы); раздел каталога — /раздел/подраздел/ + фильтры
+function toPath(r){
+  r = String(r || '/').replace(/^#/, '') || '/';
+  const [p, q] = r.split('?'), qs = q ? '?' + q : '';
+  let m;
+  if((m = p.match(/^\/lot\/(.+)$/))){ const id = decodeURIComponent(m[1]), l = byId(id);
+    return '/lot/' + (l && l.u ? l.u : encodeURIComponent(id)) + '/' + qs; }
+  if((m = p.match(/^\/c\/([a-z]+)(?:\/([a-z]+))?$/))) return '/' + m[1] + '/' + (m[2] ? m[2] + '/' : '') + qs;
+  return p + qs;
+}
+// адрес → маршрут (первая загрузка, переход по ссылке без data-r)
+function fromPath(path, search){
+  if(MT_META && path === MT_PATH0){   // готовая страница: её маршрут + фильтры из адреса
+    if(!search) return MT_META;
+    const [mp, mq] = MT_META.split('?'), u = new URLSearchParams(mq || '');
+    new URLSearchParams(search).forEach((v, k) => u.set(k, v));
+    return mp + '?' + u.toString();
+  }
+  const p = path.replace(/\/index\.html$/, '').replace(/(.)\/+$/, '$1') || '/';
+  let m;
+  if((m = p.match(/^\/lot\/([^/]+)$/))){ const u = decodeURIComponent(m[1]);
+    const l = [...DATA, ...(ARCH || ARCH1 || []), ...Object.values(LOT1)].find(x => x.u === u);
+    return '/lot/' + encodeURIComponent(l ? l.id : u) + (search || ''); }
+  const tops = (CFG.cats || []).map(t => t.k);
+  if((m = p.match(/^\/([a-z]+)(?:\/([a-z]+))?$/)) && tops.includes(m[1])) return '/c/' + m[1] + (m[2] ? '/' + m[2] : '') + (search || '');
+  return p + (search || '');
+}
+const curRoute = () => (history.state && history.state.r) ||
+  (/^#\//.test(location.hash) ? location.hash.slice(1) : fromPath(location.pathname, location.search));
+function nav(r, replace){
+  r = String(r || '/').replace(/^#/, '') || '/';
+  history[replace ? 'replaceState' : 'pushState']({ r }, '', toPath(r));
+  dispatchEvent(new Event('routechange')); go();
+}
+// href="#/…" → настоящий адрес (data-r хранит маршрут для nav); ссылки появляются при каждой отрисовке — следим за DOM
+function fixLinks(root){
+  (root || document).querySelectorAll('a[href^="#/"]').forEach(a => { const r = a.getAttribute('href').slice(1);
+    a.dataset.r = r; a.setAttribute('href', toPath(r)); });
+}
+new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => { if(n.nodeType === 1){
+  if(n.matches && n.matches('a[href^="#/"]')) fixLinks(n.parentNode); else fixLinks(n); } })))
+  .observe(document.documentElement, { childList:true, subtree:true });
+document.addEventListener('click', e => {
+  const a = e.target.closest && e.target.closest('a[href]'); if(!a || e.defaultPrevented) return;
+  if(e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || (a.target && a.target !== '_self') || a.hasAttribute('download')) return;
+  const href = a.getAttribute('href');
+  if(href.startsWith('#/')){ e.preventDefault(); nav(href); return; }
+  if(a.dataset.r && a.origin === location.origin){ e.preventDefault(); nav(a.dataset.r); }
+});
 /* ошибки у посетителей — в базу (rpc report_error), монитор пересылает новые в Telegram. Одна и та же — один раз за визит,
    не больше 5 за визит; чужие скрипты (расширения браузера, «Script error.» без подробностей), чужие картинки и роботы поисковиков — не в счёт */
 (()=>{
@@ -1434,17 +1495,17 @@ function paint(){}
 /* класс цвета площадки: e-auction.by → p-eauction (цвета — в стилях, .p-…) */
 const pslug = p => 'p-' + String(p||'').split('.')[0].replace(/[^a-z0-9]/g,'');
 const NOPH = ['nedvizhimost','avto','gruz','spec','oborud','arenda'];
-const noph = (l, cls) => `<img${cls?` class="${cls}"`:''} src="noph/${NOPH.includes(l.section)?l.section:'other'}.svg" alt="Нет фото" loading="lazy">`;
+const noph = (l, cls) => `<img${cls?` class="${cls}"`:''} src="/noph/${NOPH.includes(l.section)?l.section:'other'}.svg" alt="Нет фото" loading="lazy">`;
 /* фото: наша копия; у minskestate — ссылкой на площадку (phx: её robots.txt закрывает фото для роботов); нет — заглушка */
 const pic = (l, cls) => !l.photo && !l.phx ? noph(l, cls)
-  : `<img${cls?` class="${cls}"`:''} src="${l.photo ? `ph/${encodeURIComponent(l.photo)}.jpg` : esc(l.phx)}"${cls==='big'?'':' loading="lazy"'} decoding="async" alt="${esc(l.name)}">`;
+  : `<img${cls?` class="${cls}"`:''} src="${l.photo ? `/ph/${encodeURIComponent(l.photo)}.jpg` : esc(l.phx)}"${cls==='big'?'':' loading="lazy"'} decoding="async" alt="${esc(l.name)}">`;
 
 const DET = {}, DETQ = {};
 window.__det = (n, m) => { Object.assign(DET, m); const w = DETQ[n]; DETQ[n] = 'ok'; if(Array.isArray(w)) w.forEach(f=>f()); };
 function loadDet(l){
   return new Promise(res=>{
     if(DETQ[l.pk]==='ok') return res(DET[l.id]||{s:[],t:{}});
-    if(!DETQ[l.pk]){ DETQ[l.pk] = []; addScript(`det/p${l.pk}.js`); }
+    if(!DETQ[l.pk]){ DETQ[l.pk] = []; addScript(`/det/p${l.pk}.js`); }
     DETQ[l.pk].push(()=>res(DET[l.id]||{s:[],t:{}}));
   });
 }
@@ -1459,14 +1520,14 @@ function loadArch1(){
   return new Promise(res=>{
     if(ARCH1) return res(ARCH1);
     ARCH1W.push(()=>res(ARCH1));
-    if(ARCH1W.length===1) addScript('arch.js');
+    if(ARCH1W.length===1) addScript('/arch.js');
   });
 }
 function loadArch(){
   return new Promise(res=>{
     if(ARCH) return res(ARCH);
     ARCHW.push(()=>res(ARCH));
-    if(ARCHW.length===1) loadArch1().then(()=>addScript('arch2.js'));
+    if(ARCHW.length===1) loadArch1().then(()=>addScript('/arch2.js'));
   });
 }
 // Номер пачки подробностей лота (det/p<номер>.js) — как в build.rb: crc32(id) % PACKS. Архивный лот лежит в своей пачке
@@ -1542,7 +1603,7 @@ const qwords = q => norm(q).split(/[\s,]+/).map(w=>w.replace(/^[^a-zа-я0-9]+|[
 /* поиск по описанию: VIN, кадастровый и инвентарный номера, адрес, марка, начало описания — srch.js, грузится при первом поиске */
 let SRCH = null; const SRCHW = [];
 window.__srch = m => { SRCH = m; SRCHW.splice(0).forEach(f=>f()); };
-function loadSrch(){ return new Promise(res=>{ if(SRCH) return res(SRCH); SRCHW.push(()=>res(SRCH)); if(SRCHW.length===1) addScript('srch.js'); }); }
+function loadSrch(){ return new Promise(res=>{ if(SRCH) return res(SRCH); SRCHW.push(()=>res(SRCH)); if(SRCHW.length===1) addScript('/srch.js'); }); }
 /* «500/С-37246» набрали русской «С» — в индексе номера латиницей */
 const LATW = {а:'a',в:'b',е:'e',к:'k',м:'m',н:'h',о:'o',р:'p',с:'c',т:'t',у:'y',х:'x'};
 // название и «название + адрес + номер + должник» в нижнем регистре — один раз на лот (в архиве их 15 тысяч)
@@ -1639,7 +1700,7 @@ function attachSuggest(input, box, done){
     e.preventDefault();
     const links = [...box.querySelectorAll('a')], q = input.value.trim();
     const to = cur>=0 && links[cur] ? links[cur].getAttribute('href') : (q ? '#/catalog?q='+encodeURIComponent(q) : null);
-    close(); if(done) done(); if(to) location.hash = to;
+    close(); if(done) done(); if(to) nav(to);
   });
   box.addEventListener('click', e=>{ if(e.target.closest('a')){ close(); if(done) done(); } });
 }
@@ -1942,7 +2003,7 @@ function mdd(btn, items, sel, onChange, o){
     document.body.append(ul); place();
     btn.parentElement.classList.add('open'); btn.setAttribute('aria-expanded', 'true');
     ['pointerdown', 'scroll', 'keydown'].forEach(t => addEventListener(t, away, true)); addEventListener('resize', away);
-    addEventListener('hashchange', close, { once:true }); };   // ушли на другую страницу — список не остаётся висеть
+    addEventListener('routechange', close, { once:true }); };   // ушли на другую страницу — список не остаётся висеть
   btn.onclick = () => ul ? close() : open();
   label();
 }
@@ -2103,13 +2164,14 @@ function pageCatalog(sc, params){
   if(view==='soon') FSTATE.soon = 1;
   if(view==='new'){ FSTATE.fresh = 1; FSTATE.sort = FSTATE.sort || 'new'; }
   if(view==='pin') FSTATE.pin = 1;
-  const basePath = sc ? '/c/' + scPath(sc) : '/catalog';
+  const basePath = sc ? '/c/' + scPath(sc) : '/catalog', gen = NAVN;
   const defSort = () => FSTATE.st==='arch' ? 'closed' : view==='new' ? 'new' : 'deadline';
   // адрес страницы по текущим фильтрам — replaceState: без новой записи в истории и без перерисовки
   const syncUrl = () => { const p = new URLSearchParams(); if(view) p.set('view', view);
     FKEYS.forEach(k=>{ const v = FSTATE[k]; if(v && !(k==='sort' && v===defSort())) p.set(k, v); });
     const h = basePath + (p.toString() ? '?' + p : '');
-    if(h !== CUR){ CUR = h; history.replaceState(history.state, '', '#' + h); }
+    if(gen !== NAVN) return;
+    if(h !== CUR){ CUR = h; history.replaceState({ r:h }, '', toPath(h)); }
     CAT_NOW = { hash:h, show }; };
   const titleOf = () => sc ? scName(sc) : view==='soon' ? 'Истекающие торги' : view==='new' ? 'Новые лоты' : view==='pin' ? 'Рекомендуем'
     : (FSTATE.q ? 'Поиск по каталогу' : FSTATE.st==='arch' ? 'Архив торгов' : 'Все лоты');
@@ -2167,7 +2229,7 @@ function pageCatalog(sc, params){
           if(t!=='nedvizhimost') delete CARRY.land;   // «только земельные участки» — у недвижимости
           if(t!=='transport' || (s && !BRAND_SUBS.includes(s))) delete CARRY.brand;   // марка — у легковых, грузовых, автобусов
           FKEEP = { y:scrollY, open:$('#fp').classList.contains('open') };
-          location.hash = t ? '#/c/' + t + (s ? '/' + s : '') : '#/catalog'; return; }
+          nav(t ? '#/c/' + t + (s ? '/' + s : '') : '#/catalog'); return; }
         // другая область — город прежней не подходит; список городов новой области появляется под «Регионом»
         if(id==='f-region'){ FSTATE.city = ''; const op = $('#fp').classList.contains('open'); drawPanel();
           if(op) $('#fp').classList.add('open'); }
@@ -2671,6 +2733,7 @@ document.addEventListener('click', e => {
   b.textContent = open ? 'Свернуть' : `Показать все (${b.dataset.n})`;
   if(!open){ const s = b.closest('section'); if(s.getBoundingClientRect().top < 0) s.scrollIntoView({ block:'start' }); }
 });
+// площадка выставила объект повторно под тем же номером (БелТорги) — прошлые торги и есть этот лот: ссылка вела бы на эту же страницу (22.10)
 function histBlock(l, h){
   const arch = l.status==='archive', last = h.find(a=>a.st!=='active');
   const now = h.find(a=>a.st==='active');
@@ -2679,7 +2742,7 @@ function histBlock(l, h){
     lead = `Прошлые торги - ${dt(last.d)}, ${(AST[last.st] || 'итог неизвестен').toLowerCase()}${last.pr ? ` за ${nf(last.pr)} BYN` : ''}. Стартовая цена с тех пор ${p ? (p < 0 ? 'снижена на ' : 'выросла на ') + Math.abs(p) + '%' : 'не изменилась'}.`; }
   else if(arch && now) lead = `Объект снова на торгах - приём заявок до ${dt(now.d)}.`;
   return `<section class="panel xs" id="x-hist"><h2>История объекта</h2><p class="xsub">${lead}</p>
-    <div class="xl">${h.map(a=>`<div class="xr"><div class="xn"><b>${dt(a.d)}</b> · ${esc(a.p)}<span>${aucLink(a)}</span></div>
+    <div class="xl">${h.map(a=>`<div class="xr"><div class="xn"><b>${dt(a.d)}</b> · ${esc(a.p)}<span>${a.id && a.id===l.id ? esc(a.n) : aucLink(a)}</span></div>
       <div class="xv">${a.s > 0 ? `<span class="mut">${a.st==='active' ? 'стартовая' : 'начальная'} ${nf(a.s)} BYN</span>` : ''}${a.st==='active' ? `<b class="ok">Сейчас на торгах</b>` : aucRes(a)}${a.us ? `<span class="mut">${a.us} ${plural(a.us,'участник','участника','участников')}</span>` : ''}</div></div>`).join('')}</div></section>`;
 }
 let LEAF = null;
@@ -2696,7 +2759,7 @@ function loadLeaflet(){
   return LEAF;
 }
 function mapBlock(l, g){
-  const prec = { s:'Точный дом на карте не нашёлся, поэтому отмечена улица. ', p:'Точного адреса на карте нет, поэтому отмечен населённый пункт. ' }[g[2]] || '';
+  const prec = { s:'Точный дом на карте не нашёлся, поэтому отмечена улица. ', p:'Точка стоит в центре населённого пункта: по адресу площадки карта не нашла точное место. ' }[g[2]] || '';
   return `<section class="panel xs" id="x-map"><h2>Где находится</h2><div id="lmap" class="lmap"></div>
     <div class="mapbtns"><a class="btn" href="https://yandex.by/maps/?pt=${g[1]},${g[0]}&z=${g[2]==='p'?12:16}&l=map" target="_blank" rel="noopener">Открыть в Яндекс Картах ↗</a>
       <a class="btn" href="https://www.google.com/maps/search/?api=1&query=${g[0]},${g[1]}" target="_blank" rel="noopener">Открыть в Google Картах ↗</a></div>
@@ -2740,7 +2803,7 @@ function gload(u){
 }
 function galleryBlock(l, pics){
   const th = pics.map(u=>thumbOf(l.platform, u)), many = pics.length > 1;
-  const first = l.photo ? `ph/${encodeURIComponent(l.photo)}.jpg` : pics[0];
+  const first = l.photo ? `/ph/${encodeURIComponent(l.photo)}.jpg` : pics[0];
   return `<div class="gv${l.photo ? '' : ' ld'}" id="gv"><img class="big${l.photo ? ' lq' : ''}" id="gv-img" src="${esc(first)}" alt="${esc(l.name)}">
       ${many ? '<button class="gv-b gv-p" type="button" aria-label="Предыдущее фото">‹</button><button class="gv-b gv-n" type="button" aria-label="Следующее фото">›</button>' : ''}
       <button class="gv-full" type="button" aria-label="Открыть на весь экран" title="На весь экран">⤢</button>${many ? `<span class="gv-cnt" id="gv-cnt">1 / ${pics.length}</span>` : ''}</div>
@@ -3171,19 +3234,19 @@ function svcList(){
    Статьи — из админки (таблица news; робот кладёт их в CFG.news при публикации, фото — файлами). Без базы (локальная сборка) — SSNEW ниже:
    те же три первые статьи — пересказ своими словами реальных новостей 2026 года со ссылкой на источник; фото — Pexels (бесплатная лицензия). */
 const NEWS = [
-  { slug:'zemlya-minskij-rajon-16-oktyabrya', date:'2026-09-19', img:'img/news/zemlya-minskij-rajon-16-oktyabrya.jpg',
+  { slug:'zemlya-minskij-rajon-16-oktyabrya', date:'2026-09-19', img:'/img/news/zemlya-minskij-rajon-16-oktyabrya.jpg',
     title:'16 октября - аукцион земли под Минском: участки от 11 до 225 тысяч рублей',
     lead:'Минский район выставляет восемь участков под жилой дом - от Ратомки и Колодищ до деревни Селище.',
     body:'На 16 октября 2026 года назначен аукцион по продаже земельных участков в Минском районе. На торги выходят восемь участков - в агрогородках Ратомка и Колодищи, а также в деревнях Подгорье, Птичь, Селище и Василевщина.\n\nРазброс стартовых цен большой. Самый дорогой лот - в Ратомке, его начальная цена 225 тысяч рублей. Самый доступный - в деревне Селище, за 11 тысяч рублей.\n\nСтартовая цена на земельных аукционах под Минском - только начало: на востребованных участках ставки часто поднимаются в разы. Перед подачей заявки стоит сравнить лот с ценами на похожие участки и заранее определить для себя предел.',
     src:'https://myfin.by/article/rynki/zemla-pod-minskom-ot-11-tysac-rublej-kakie-ucastki-vystavili-na-aukcion-48559', srcName:'Myfin.by',
     cta:['Земельные участки на МониТорг', '#/s/nedvizhimost?land=1'] },
-  { slug:'pustuyushchie-doma-2-kvartal-2026', date:'2026-07-08', img:'img/news/pustuyushchie-doma-2-kvartal-2026.jpg',
+  { slug:'pustuyushchie-doma-2-kvartal-2026', date:'2026-07-08', img:'/img/news/pustuyushchie-doma-2-kvartal-2026.jpg',
     title:'Каждый второй пустующий дом в Беларуси продают за одну базовую',
     lead:'Итоги второго квартала: 357 сделок, 193 дома ушли по символической цене.',
     body:'Национальное кадастровое агентство подвело итоги продажи пустующих домов за апрель–июнь 2026 года. Всего заключено 357 сделок: 140 домов продано через аукцион, 217 - без торгов.\n\nПримерно каждый второй дом - 193 объекта - купили за одну базовую величину. Это возможно, когда на дом нет других желающих или аукцион не состоялся.\n\nБольше всего сделок в Гродненской области - 96. Дальше Минская (64), Брестская (63), Витебская (57) и Могилёвская (56) области; в Гомельской - 21.\n\nТакие дома часто требуют серьёзного ремонта, а покупатель обязан привести их в порядок в установленный срок. Перед покупкой стоит съездить на осмотр и оценить состояние дома и участка.',
     src:'https://myfin.by/article/rynki/kazdyj-vtoroj-pustuusij-dom-v-belarusi-prodaut-za-1-bazovuu-itogi-vtorogo-kvartala-2026-46811', srcName:'Myfin.by',
     cta:['Недвижимость на торгах', '#/s/nedvizhimost'] },
-  { slug:'uchastok-leskovka-192-tysyachi', date:'2026-06-19', img:'img/news/uchastok-leskovka-192-tysyachi.jpg',
+  { slug:'uchastok-leskovka-192-tysyachi', date:'2026-06-19', img:'/img/news/uchastok-leskovka-192-tysyachi.jpg',
     title:'Участок под Минском продали за 192 тысячи долларов - вдвое дороже стартовой цены',
     lead:'На аукционе в Минском районе цены на землю выросли в 2–3 раза от начальных.',
     body:'В июне прошёл аукцион по продаже земельных участков под жилые дома в Минском и Березинском районах. Самыми дорогими стали два участка по 22 сотки в Лесковке: оба стартовали с 250 тысяч рублей и ушли примерно за 536 тысяч рублей - около 192 тысяч долларов. За них боролись пять и семь участников.\n\nЕщё сильнее подорожал участок в Колодищах на 16 соток: при стартовой цене 150 тысяч рублей его продали за 475 тысяч, заявок было десять. Участок в Малиновке ушёл за 215 тысяч рублей при старте 150 тысяч.\n\nЕсли у лота много желающих, итоговая цена может в разы превысить начальную. Поэтому стоит смотреть не только на стартовую цену, но и на итоги похожих торгов - они есть в архиве МониТорга.',
@@ -3193,7 +3256,9 @@ const NEWS = [
 const newsList = () => { const n = CFG.news; return (Array.isArray(n) && n.length ? n : NEWS).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date))); };
 const ndate = d => { const [y,m,dd] = String(d).split('-').map(Number);
   return y ? `${dd} ${['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'][m-1]} ${y}` : ''; };
-const newsCard = n => `<a class="ncard" href="#/news/${encodeURIComponent(n.slug)}">${n.img ? `<img class="nimg" src="${esc(n.img)}" alt="" loading="lazy">` : ''}
+// картинки из админки записаны от корня сайта без «/» (img/news/…, news/…): на адресе /news/<статья>/ так искались в /news/img/… (22.10)
+const aurl = u => u && !/^(?:\/|[a-z]+:)/i.test(u) ? '/' + u : u;
+const newsCard = n => `<a class="ncard" href="#/news/${encodeURIComponent(n.slug)}">${n.img ? `<img class="nimg" src="${esc(aurl(n.img))}" alt="" loading="lazy">` : ''}
   <span class="nbody"><span class="nmeta">${ndate(n.date)}</span><h3>${esc(n.title)}</h3><p>${esc(n.lead||'')}</p><span class="nmore">Читать →</span></span></a>`;
 function pageNews(){
   document.title = 'Новости' + TSUF;
@@ -3209,7 +3274,7 @@ function pageNewsItem(slug){
   $('#app').innerHTML = `<div class="wrap">${crumbs([['Новости','#/news'],[n.title.length > 60 ? n.title.slice(0,57) + '…' : n.title]])}
     <article class="nart"><div class="nmeta">${ndate(n.date)}</div><h1>${esc(n.title)}</h1>
       ${n.lead ? `<p class="nlead">${esc(n.lead)}</p>` : ''}
-      ${n.img ? `<img class="nphoto" src="${esc(n.img)}" alt="">` : ''}
+      ${n.img ? `<img class="nphoto" src="${esc(aurl(n.img))}" alt="">` : ''}
       ${String(n.body||'').split(/\n\s*\n/).map(p=>`<p>${esc(p.trim())}</p>`).join('')}
       ${n.src ? `<p class="nsrc">Источник: <a href="${esc(n.src)}" target="_blank" rel="noopener">${esc(n.srcName || n.src)} ↗</a></p>` : ''}
       ${n.cta ? `<p><a class="btn pri" href="${esc(n.cta[1])}">${esc(n.cta[0])}</a></p>` : ''}</article>
@@ -3217,21 +3282,32 @@ function pageNewsItem(slug){
 }
 
 // абзацы — через пустую строку; строка ЗАГЛАВНЫМИ («3. КАКИЕ COOKIE…») — заголовок; строки через « | » — таблица
-function docHtml(txt){
-  return String(txt).replace(/\r/g, '').split(/\n\s*\n/).map(b=>b.replace(/^\n+|\s+$/g, '')).filter(Boolean).map(b=>{
-    const L = b.split('\n');
-    if(L.length === 1 && /^[\d. ]*[А-ЯЁA-Z][^а-яёa-z]{6,}$/.test(L[0].trim())) return `<h2>${esc(L[0].trim())}</h2>`;
-    if(L.length > 1 && L.every(l=>l.includes(' | '))){
-      const rows = L.map(l=>l.split(' | ').map(x=>x.trim()));
-      return `<div class="tw"><table class="plain"><tr>${rows[0].map(x=>`<th>${esc(x)}</th>`).join('')}</tr>${rows.slice(1).map(c=>`<tr>${c.map(x=>`<td>${esc(x)}</td>`).join('')}</tr>`).join('')}</table></div>`;
-    }
-    return `<p>${esc(b.trim()).replace(/\n/g, '<br>')}</p>`;
-  }).join('');
+// Текст политики → разметка, построчно (22.10: текст из админки вставлен без пустых строк — всё сливалось в один абзац).
+// ЗАГЛАВНЫЕ — раздел; «3.1. Короткое название» без точки в конце — подраздел; «а) Яндекс Метрика» — подзаголовок;
+// «- …» подряд — список; строки с « | » подряд — таблица; «Кто: …», «Срок: …» — подпись жирным; ссылки — кликабельные
+function docHtml(txt, title){
+  const L = String(txt).replace(/\r/g, '').split('\n').map(x=>x.trim()).filter(Boolean);
+  if(title && L[0] && L[0].toLowerCase() === title.toLowerCase()) L.shift();
+  const inl = t => esc(t).replace(/https?:\/\/[^\s<]+[^\s<.,;)]/g, u=>`<a href="${u}" target="_blank" rel="noopener">${u}</a>`)
+    .replace(/^([А-ЯЁ][а-яё]+(?: [а-яё]+){0,3}):\s/, '<b>$1:</b> ');
+  const out = [];
+  for(let i = 0; i < L.length; i++){
+    const l = L[i];
+    if(l.startsWith('- ')){ const it = []; while(i < L.length && L[i].startsWith('- ')) it.push(`<li>${inl(L[i++].slice(2))}</li>`); i--;
+      out.push(`<ul>${it.join('')}</ul>`); continue; }
+    if(l.includes(' | ') && (L[i+1] || '').includes(' | ')){ const rows = []; while(i < L.length && L[i].includes(' | ')) rows.push(L[i++].split(' | ').map(x=>x.trim())); i--;
+      out.push(`<div class="tw"><table class="plain"><tr>${rows[0].map(x=>`<th>${esc(x)}</th>`).join('')}</tr>${rows.slice(1).map(c=>`<tr>${c.map(x=>`<td>${inl(x)}</td>`).join('')}</tr>`).join('')}</table></div>`); continue; }
+    if(/^[\d. ]*[А-ЯЁA-Z][^а-яёa-z]{5,}$/.test(l)) out.push(`<h2>${esc(l)}</h2>`);
+    else if(/^\d+\.\d+\.\s/.test(l) && l.length <= 80 && !/[.;:,]$/.test(l)) out.push(`<h3>${esc(l)}</h3>`);
+    else if(/^[а-я]\)\s/.test(l) && l.length <= 60 && !/[.;:,]$/.test(l)) out.push(`<h4>${esc(l)}</h4>`);
+    else out.push(`<p${/^[А-ЯЁ][а-яё]+(?: [а-яё]+){0,3}:\s/.test(l) ? ' class="kv"' : ''}>${inl(l)}</p>`);
+  }
+  return out.join('');
 }
 function pageDoc(key, file, title){
   document.title = title + TSUF;
   $('#app').innerHTML = `<div class="wrap">${crumbs([[title]])}<h1>${esc(title)}</h1><div class="privacy" id="doc"><div class="skel"></div></div></div>`;
-  const draw = t => { const d = $('#doc'); if(d) d.innerHTML = docHtml(t); };
+  const draw = t => { const d = $('#doc'); if(d) d.innerHTML = docHtml(t, title); };
   const own = TX(key, '');
   if(own) return draw(own);
   fetch('/docs/' + file + '?v=' + SNAP).then(r=>{ if(!r.ok) throw 0; return r.text(); }).then(draw)
@@ -3248,6 +3324,7 @@ function startCounters(){
   if(/^\d{5,12}$/.test(c.ym || '')){
     window.ym = window.ym || function(){ (ym.a = ym.a || []).push(arguments); }; ym.l = +new Date();
     add('https://mc.yandex.ru/metrika/tag.js');
+    addEventListener('routechange', () => setTimeout(() => ym(+c.ym, 'hit', location.href, { title:document.title }), 400));
     ym(+c.ym, 'init', { clickmap:true, trackLinks:true, accurateTrackBounce:true, webvisor:false, trackHash:true });   // Вебвизор выключен — так в Политике cookie   // trackHash — переходы внутри сайта (#/lot/…)
   }
   if(/^G-[A-Z0-9]{4,15}$/.test(c.ga || '')){
@@ -3257,7 +3334,7 @@ function startCounters(){
     // (заголовок страницы ставится при отрисовке — берём его чуть позже)
     gtag('js', new Date()); gtag('config', c.ga, { page_location: location.href });
     let last = location.href;
-    addEventListener('hashchange', () => setTimeout(() => { if(location.href === last) return; last = location.href;
+    addEventListener('routechange', () => setTimeout(() => { if(location.href === last) return; last = location.href;
       gtag('event', 'page_view', { page_location: location.href, page_title: document.title }); }, 400));
   }
 }
@@ -3488,7 +3565,7 @@ const ICON = {
 // ({ nedvizhimost:'media/…png', avto:…, oborud:…, arenda:… } — у раздела это его значок t.ic)
 function sectionTiles(imgs){
   return `<div class="stiles">${CATS.map(t=>{ const k = DATA.filter(l=>inScope(l, {top:t.k})).length;
-    const ic = imgs && imgs[t.ic] ? `<img src="${esc(imgs[t.ic])}" alt="" loading="lazy">` : ICON[t.ic];
+    const ic = imgs && imgs[t.ic] ? `<img src="${esc(aurl(imgs[t.ic]))}" alt="" loading="lazy">` : ICON[t.ic];
     return `<a class="stile s-${t.ic}" href="#/c/${t.k}"><span class="bg">${ic}</span><span class="ti">${ic}</span>
       <span class="tt">${esc(t.n)}</span><span class="tn">${k} ${plural(k,'активный лот','активных лота','активных лотов')}</span></a>`;
   }).join('')}</div>`;
@@ -3502,7 +3579,7 @@ const isSoon = l => l.req_to*1000 > Date.now() && l.req_to*1000 - Date.now() <= 
 const HOME_DEF = ['hero','tiles','how','band','pins','soon','fresh','why','cal','news'].map(t=>({ id:t, type:t }));
 const homeBlocks = () => { const h = CFG.home && Array.isArray(CFG.home.blocks) && CFG.home.blocks.length ? CFG.home.blocks : HOME_DEF;
   return h.filter(b=>b && b.on !== false); };
-const safeUrl = u => { u = String(u||'').trim(); return /^(https?:\/\/|#\/)/i.test(u) ? u : ''; };
+const safeUrl = u => { u = String(u||'').trim(); return /^(https?:\/\/|#\/|\/(?!\/))/i.test(u) ? u : ''; };   // и адрес сайта /transport/ (22.10)
 const extAttr = u => /^https?:/i.test(u) ? ' target="_blank" rel="noopener"' : '';
 const todayKey = () => { const d = new Date(); return d.getFullYear() + '-' + p2(d.getMonth()+1) + '-' + p2(d.getDate()); };
 const paras = t => String(t||'').split(/\n\s*\n/).map(p=>p.trim()).filter(Boolean).map(p=>`<p>${esc(p)}</p>`).join('');
@@ -3530,12 +3607,12 @@ const HB = {
   why: b => head2(b, 'Почему МониТорг') + `<div class="adv">${advList().map(([ic,t,d],i)=>{ const own = (b.imgs||[])[i];   // свой значок пункта из конструктора
       return `<div class="it">${b.icons === 'line' && !own ? `<div class="ic">${advIc(ic)}</div>`
         : b.icons !== '3d' && !own && WHY_IC[ic] ? `<div class="icg"><svg viewBox="0 0 32 32">${WHY_IC[ic]}</svg></div>`
-        : `<img class="ic3" src="${esc(own || `img/why${i+1}.png`)}" width="64" height="64" alt="" loading="lazy" data-ic="${esc(ic)}" onerror="advFail(this)">`}<h3>${esc(t)}</h3><p>${esc(d)}</p></div>`; }).join('')}</div>
+        : `<img class="ic3" src="${esc(aurl(own) || `/img/why${i+1}.png`)}" width="64" height="64" alt="" loading="lazy" data-ic="${esc(ic)}" onerror="advFail(this)">`}<h3>${esc(t)}</h3><p>${esc(d)}</p></div>`; }).join('')}</div>
       <p class="more-lk"><a class="lk-b" href="#/about">Все возможности платформы <i>→</i></a></p>`,
   cal: b => `<div class="sec-h"><h2>${esc(b.title || 'Календарь торгов')}</h2></div>
       <p class="lede" style="margin:-4px 0 12px">${esc(b.sub || 'Торги всех площадок по датам. Нажмите на день - откроется список лотов.')}</p><div class="cal" id="cal"></div>`,
   news: b => { const n = newsList().slice(0, +b.count || 3); return n.length ? head2(b, 'Новости', '<a href="#/news">Все новости →</a>') + `<div class="news">${n.map(newsCard).join('')}</div>` : ''; },
-  text: b => { const img = b.img ? `<img src="${esc(b.img)}" alt="" loading="lazy">` : '', u = safeUrl(b.btn_url);
+  text: b => { const img = b.img ? `<img src="${esc(aurl(b.img))}" alt="" loading="lazy">` : '', u = safeUrl(b.btn_url);
     if(!b.title && !b.text && !img) return '';
     return `<div class="htx${img ? ' side-' + esc(b.side || 'right') : ''}">${img}<div class="htx-t">${b.title ? `<h2>${esc(b.title)}</h2>` : ''}${paras(b.text)}
       ${u && b.btn_text ? `<a class="btn pri" href="${esc(u)}"${extAttr(u)}>${esc(b.btn_text)}</a>` : ''}</div></div>`; },
@@ -3544,7 +3621,7 @@ const HB = {
     const it = (b.items||[]).filter(x=>x && x.img && (!x.from || x.from <= t) && (!x.to || x.to >= t));
     if(!it.length) return '';
     return (b.title ? `<div class="sec-h"><h2>${esc(b.title)}</h2></div>` : '') + `<div class="hbn f-${f}">${it.map(x=>{ const u = safeUrl(x.url);
-      const inner = `<img src="${esc(x.img)}" alt="${esc(x.name || '')}" loading="lazy">${x.ad !== false ? `<span class="adl">Реклама${x.adv ? ' · ' + esc(x.adv) : ''}</span>` : ''}`;
+      const inner = `<img src="${esc(aurl(x.img))}" alt="${esc(x.name || '')}" loading="lazy">${x.ad !== false ? `<span class="adl">Реклама${x.adv ? ' · ' + esc(x.adv) : ''}</span>` : ''}`;
       const bid = /^[a-z0-9-]{4,40}$/.test(x.bid || '') ? ` data-bid="${x.bid}"` : '';
       return u ? `<a href="${esc(u)}"${/^https?:/i.test(u) ? ' target="_blank" rel="sponsored noopener"' : ''}${bid}>${inner}</a>` : `<div${bid}>${inner}</div>`; }).join('')}</div>`; },
   faq: b => { const it = (b.items||[]).filter(x=>x && x.q); return it.length ? `<h2>${esc(b.title || 'Вопросы и ответы')}</h2>
@@ -3580,16 +3657,16 @@ function heroHtml(b){
 
       <a class="btn big land-help" href="#/help">Помощь в аукционе</a>
       <div class="land-live"><b>${nf(DATA.length)}</b> ${plural(DATA.length,'активный лот','активных лота','активных лотов')} с <b>${plats}</b> ${plural(plats,'площадки','площадок','площадок')}</div>
-    ${b.img ? `</div><img class="hero-img" src="${esc(b.img)}" alt="">` : ''}</div>
+    ${b.img ? `</div><img class="hero-img" src="${esc(aurl(b.img))}" alt="">` : ''}</div>
   </section>`;
 }
 // логотип в шапке: своя картинка из конструктора («Общий стиль») вместо знака MoniTorg (светлый и тёмный — по теме)
-const LOGO_DEF = '<img class="mark ml" src="logo-mark.png" alt=""><img class="mark md" src="logo-mark-dark.png" alt="">';
+const LOGO_DEF = '<img class="mark ml" src="/logo-mark.png" alt=""><img class="mark md" src="/logo-mark-dark.png" alt="">';
 function applyLogo(t){
   const box = $('.logo'), src = t && t.logo;
   if(!box) return;
   box.querySelectorAll('.mark').forEach(m=>m.remove());
-  box.insertAdjacentHTML('afterbegin', src ? `<img class="mark mimg" src="${esc(src)}" alt="">` : LOGO_DEF);
+  box.insertAdjacentHTML('afterbegin', src ? `<img class="mark mimg" src="${esc(aurl(src))}" alt="">` : LOGO_DEF);
 }
 applyLogo(CFG.home && CFG.home.theme);
 // показы и клики рекламных баннеров: показ — когда баннер хотя бы наполовину на экране (раз за открытие страницы), клик — по нажатию.
@@ -3633,7 +3710,7 @@ function pageHome(){
 }
 // предпросмотр из админки: сайт открыт в окне админки, та передаёт черновик главной (картинки — данными, ещё не опубликованы)
 window.previewHome = (home, texts) => { CFG.home = home; if(texts) CFG.texts = texts; applyTheme(home.theme); applyLogo(home.theme); $('#ck').hidden = true;
-  if((location.hash || '#/') === '#/') pageHome(); else location.hash = '#/'; };
+  if(curRoute() === '/') pageHome(); else nav('#/'); };
 
 /* ───────── календарь торгов (главная, внизу) ─────────
    Дата торгов лота (torgAt: у площадок без даты торгов — следующий день после заявок, «ориентировочно») → день месяца.
@@ -3682,7 +3759,7 @@ function drawCal(){
   box.querySelectorAll('.cal-d[data-k]').forEach(b=>b.onclick = e => { e.stopPropagation(); calPop(b.dataset.k, b, by[b.dataset.k] || []); });
 }
 function calItem(l){
-  const src = l.photo ? `ph/${encodeURIComponent(l.photo)}.jpg` : l.phx || `noph/${NOPH.includes(l.section)?l.section:'other'}.svg`;
+  const src = l.photo ? `/ph/${encodeURIComponent(l.photo)}.jpg` : l.phx || `/noph/${NOPH.includes(l.section)?l.section:'other'}.svg`;
   return `<a class="cal-it ${pslug(l.platform)}" href="#/lot/${encodeURIComponent(l.id)}"><img src="${esc(src)}" loading="lazy" decoding="async" alt="">
     <span class="b"><span class="t"><i class="pdot"></i>${l.torg ? dtm(l.torg) : dt(torgAt(l)) + ' · ориентировочно'} · ${esc(l.platform)}</span>
       <span class="nm">${esc(l.name)}</span>
@@ -3812,7 +3889,7 @@ function drawUser(){
 }
 function utoast(msg, err){ let t = $('#utoast'); if(!t){ t = document.createElement('div'); t.id = 'utoast'; document.body.appendChild(t); }
   t.textContent = msg; t.className = 'on' + (err ? ' err' : ''); clearTimeout(t._h); t._h = setTimeout(()=>t.className = '', err ? 4500 : 2600); }
-const needLogin = () => { location.hash = '#/login?next=' + encodeURIComponent(location.hash.slice(1) || '/'); };
+const needLogin = () => { nav('#/login?next=' + encodeURIComponent(curRoute())); };
 async function ulot(id, patch){
   if(!ME){ needLogin(); return null; }
   const cur = ULOTS[id] || { fav:false, watch:false, stage:null, note:null };
@@ -3931,7 +4008,7 @@ function ssOpen(s){
 }
 function openSearch(p, s){ CARRY = {}; SS_KEYS.forEach(k=>{ if(p[k]) CARRY[k] = p[k]; });
   if(s) ssOpen(s);
-  location.hash = scOf(p.sub) ? '#/c/' + p.sub : p.sec ? '#/s/' + p.sec : '#/catalog'; }
+  nav(scOf(p.sub) ? '#/c/' + p.sub : p.sec ? '#/s/' + p.sec : '#/catalog'); }
 
 /* вход, регистрация, подтверждение почты кодом, смена забытого пароля */
 const REG_PURPOSES = ['Купить недвижимость для себя', 'Купить автомобиль или технику для себя', 'Инвестиции и перепродажа',
@@ -3944,7 +4021,7 @@ function pageLogin(params){
   document.title = 'Вход в личный кабинет' + TSUF;
   const next = params.get('next') || '/me', mode = params.get('mode') || 'in';
   const href = m => '#/login?' + new URLSearchParams(Object.assign({ mode:m }, params.get('next') ? { next } : {}));
-  const go = async () => { await uload(); location.hash = '#' + (next.startsWith('/') ? next : '/me'); };
+  const go = async () => { await uload(); nav('#' + (next.startsWith('/') ? next : '/me')); };
   $('#app').innerHTML = `<div class="wrap">${crumbs([['Личный кабинет']])}
     <div class="login">
       <div class="panel login-card" id="lc"></div>
@@ -4129,7 +4206,7 @@ async function pageMe(sub, params){
       </aside>
       <section class="me-main" id="mm"><div class="skel"></div></section>
     </div></div>`;
-  $('#u-out').onclick = async () => { await ulogout(); location.hash = '#/'; };
+  $('#u-out').onclick = async () => { await ulogout(); nav('#/'); };
   const M = $('#mm');
   try{
     const fn = { '':meHome, fav:meFav, notify:meNotify, searches:meSearches, calendar:meCal, orders:meOrders, reports:meReports, stats:meStats, profile:meProfile }[tab] || meHome;
@@ -4451,8 +4528,8 @@ async function meProfile(M){
       <button class="btn" type="button" id="p-pw">Сменить пароль</button>`}</div>`;
   eyes(M);
   if($('#p-save')) $('#p-save').onclick = async () => { try{ await urpc('user_update', { p:Object.assign({ name:$('#p-name').value, phone:$('#p-phone').value, telegram:$('#p-tg').value }, ME.auth ? {} : { email:$('#p-mail').value }) }); await uload(); utoast('Сохранено'); }catch(e){ utoast(e.message, true); } };
-  if($('#p-reg')) $('#p-reg').onclick = async e => { e.preventDefault(); await ulogout(); location.hash = '#/login?mode=up'; };
-  if($('#p-forgot')) $('#p-forgot').onclick = async e => { e.preventDefault(); const em = ME.email; await ulogout(); location.hash = '#/login?mode=reset'; setTimeout(()=>{ const i = $('#f-mail'); if(i) i.value = em; }, 50); };
+  if($('#p-reg')) $('#p-reg').onclick = async e => { e.preventDefault(); await ulogout(); nav('#/login?mode=up'); };
+  if($('#p-forgot')) $('#p-forgot').onclick = async e => { e.preventDefault(); const em = ME.email; await ulogout(); nav('#/login?mode=reset'); setTimeout(()=>{ const i = $('#f-mail'); if(i) i.value = em; }, 50); };
   M.querySelectorAll('[data-nt]').forEach(i=>i.onchange = async () => { const n = {}; M.querySelectorAll('[data-nt]').forEach(x=>{ if(!x.checked) n[x.dataset.nt] = false; });
     try{ await urpc('user_update', { p:{ notify:n } }); ME.notify = n; utoast('Сохранено'); }catch(e){ utoast(e.message, true); } });
   if($('#p-news')) $('#p-news').onchange = async () => { const on = $('#p-news').checked;
@@ -4473,9 +4550,10 @@ async function meProfile(M){
 
 /* ───────── роутер с переходом страниц ───────── */
 let CUR = null, PREV = null, RESTORE_Y = null, FKEEP = null, CAT_IO = null;   // CAT_IO — автоподгрузка каталога
+let NAVN = 0;   // номер перехода: догрузка архива после ухода со страницы каталога не должна менять адрес (22.10)
 function render(path, params){
   for(const box of ['#nav', '#mmenu']){
-    const links = [...document.querySelectorAll(box + ' a:not(.btn)')], full = location.hash || '#/';
+    const links = [...document.querySelectorAll(box + ' a:not(.btn)')], full = '#' + curRoute();
     const cur = links.find(a=>a.getAttribute('href')===full) || links.find(a=>a.getAttribute('href')==='#'+path)
       || (path.startsWith('/calc') || path==='/rent' ? links.find(a=>a.getAttribute('href')==='#/calc') : null);   // вкладки «Калькуляторов»
     links.forEach(a=>a.classList.toggle('on', a===cur));
@@ -4499,15 +4577,17 @@ function render(path, params){
   else pageHome();
 }
 function go(){
-  const h = location.hash.replace(/^#/,'') || '/';
+  const h = curRoute();
   if(h===CUR) return;
   const first = CUR===null;
   if(CAT_NOW && CAT_NOW.hash===CUR) CAT_POS[CUR] = { y:window.scrollY, show:CAT_NOW.show, t:Date.now() };
   CAT_NOW = null;
-  PREV = CUR; CUR = h;
+  PREV = CUR; CUR = h; NAVN++;
   const [path, qs] = h.split('?');
   const params = new URLSearchParams(qs||'');
-  const swap = () => { render(path, params); window.scrollTo(0, RESTORE_Y || 0); RESTORE_Y = null; paint(); };
+  // быстрые клики: браузер может выполнить смену страницы с опозданием, уже после следующего перехода — старую не рисуем (22.10)
+  const swap = () => { if(CUR !== h) return; render(path, params); if(MT_T0 && location.pathname === MT_PATH0 && location.search === MT_Q0) document.title = MT_T0;
+    window.scrollTo(0, RESTORE_Y || 0); RESTORE_Y = null; paint(); };
   if(first || reduced || document.hidden){ swap(); return; }
   const bar = $('#bar');
   bar.className = ''; void bar.offsetWidth; bar.className = 'go';
@@ -4524,15 +4604,20 @@ function go(){
     setTimeout(()=>{ swap(); app.classList.remove('out'); void app.offsetWidth; app.classList.add('in'); done(); }, 140);
   }
 }
-addEventListener('hashchange', go);
+addEventListener('popstate', go);
 // письмо со ссылкой вместо кода (стандартный шаблон Supabase, пока не подключена своя почта):
 // #access_token=…&refresh_token=… — входим и открываем кабинет; ссылка устарела (#error=…) — на страницу входа
 if(UB && /^#(access_token|error)=/.test(location.hash)){
   const p = new URLSearchParams(location.hash.slice(1));
   if(p.get('access_token')) usess({ access_token:p.get('access_token'), refresh_token:p.get('refresh_token'), expires_in:+p.get('expires_in') || 3600 });
-  history.replaceState(null, '', location.pathname + location.search + (p.get('access_token') ? '#/me' : '#/login'));
+  history.replaceState({ r:p.get('access_token') ? '/me' : '/login' }, '', toPath(p.get('access_token') ? '/me' : '/login'));
 }
 uload();
 $('#app').addEventListener('animationend', e=>{ if(e.target.id==='app') e.target.classList.remove('in'); });
+// старая ссылка с # (из письма, Telegram) — сразу на новый адрес; ссылки шапки и подвала — настоящими адресами
+// ?preview= (предпросмотр главной в админке: ../?preview=…#/) остаётся в адресе — по нему не показываются плашка cookie и счётчики
+if(/^#\//.test(location.hash)){ const r = location.hash.slice(1); history.replaceState({ r }, '', toPath(r) + (r.includes('?') ? '' : location.search)); }
+else history.replaceState({ r:curRoute() }, '', location.pathname + location.search);
+fixLinks();
 go();
 </script>

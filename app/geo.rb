@@ -18,16 +18,33 @@ module Geo
   CACHE = File.join(Store::DATA, 'geo.json')
   UA = 'MoniTorg/1.0 (+https://monitorg.by/)'
   CAP = (ENV['GEO_CAP'] || 900).to_i   # запросов к сервису за прогон
+  V = 2   # версия разбора адреса
   ST = { 'ул' => 'улица', 'улица' => 'улица', 'пр-т' => 'проспект', 'просп' => 'проспект', 'проспект' => 'проспект', 'пр' => 'проспект',
-         'пер' => 'переулок', 'переулок' => 'переулок', 'бул' => 'бульвар', 'б-р' => 'бульвар', 'ш' => 'шоссе', 'шоссе' => 'шоссе',
-         'пл' => 'площадь', 'мкр' => 'микрорайон', 'тракт' => 'тракт', 'проезд' => 'проезд', 'пр-д' => 'проезд' }.freeze
-  # «пр. Победителей, 141-61», «ул. Калиновского, 74/2-1Н»: после дефиса — номер помещения, дом — до него
-  STREET = %r{(?:\A|[\s,])(ул|улица|пр-т|просп|проспект|пр|пер|переулок|бул|б-р|ш|шоссе|пл|мкр|тракт|проезд|пр-д)\.?\s*([^,]+?)(?:,\s*(?:д\.|дом)?\s*(\d+[а-яa-z]?(?:/\d+)?)(?:-\S+)?)?\s*(?:,|\z)}i
+         'пер' => 'переулок', 'переулок' => 'переулок', 'бул' => 'бульвар', 'б-р' => 'бульвар', 'бульвар' => 'бульвар', 'ш' => 'шоссе',
+         'шоссе' => 'шоссе', 'пл' => 'площадь', 'площадь' => 'площадь', 'мкр' => 'микрорайон', 'микрорайон' => 'микрорайон',
+         'тракт' => 'тракт', 'проезд' => 'проезд', 'пр-д' => 'проезд' }.freeze
+  # «пр. Победителей, 141-61», «ул. Калиновского, 74/2-1Н»: после дефиса — номер помещения, дом — до него.
+  # Длинные слова — раньше коротких и не посреди слова (22.10: «улица Монтажников» читалось как «ул.» + «ица Монтажников»)
+  HOUSE = %r{(?:(?:,\s*|\s+(?=д\.|дом|\d+[а-яa-z]?(?:/\d+)?\s*(?:[,;.]|\z)))(?:д\.|дом)?\s*(\d+\s?[а-яa-z]?(?:/\d+)?)(?:-\S+)?(?:\s+кв\.?\s*\d+)?\.?)?\s*(?:[,;]|\z)}i
+  STREET = %r{(?:\A|[\s,])(улица|ул|проспект|просп|пр-т|пр-д|пр|переулок|пер|бульвар|бул|б-р|шоссе|ш|площадь|пл|микрорайон|мкр|тракт|проезд)(?![а-я])\.?\s*([^,]+?)#{HOUSE}}i
+  INIT = /(?<![А-Яа-я])[А-Я]\.\s*(?=[А-Я])/   # инициалы перед фамилией
+  # тип после названия: «Центральная улица, 6», «2-ой Рабочий переулок, 12»
+  STREET2 = %r{(?:\A|,)\s*([^,]+?)\s+(улица|переулок|проспект|бульвар|площадь|проезд|тракт|шоссе)#{HOUSE}}i
+  # без типа: «г. Минск, Смоленская, 25» — слово с большой буквы сразу после пункта и номер дома
+  BARE = /\A\s*,\s*([А-Я][А-Яа-я\-]+(?:\s[А-Я][А-Яа-я\-]+)?)\s*,\s*(?:д\.\s*)?(\d+[а-я]?(?:\/\d+)?)\s*(?:[,.]|\z)/
+
+  # «д. Малые Аниковичи», «аг. Красная Воля»: в Obj::PLACE — только первое слово
+  def town_of(a)
+    m = a.match(Obj::PLACE) or return [a[/(?<![А-Яа-я])Минск(?![а-я])/] && 'Минск', nil]
+    t = m[2]
+    nx = a[m.end(0)..][/\A\s([А-Я][а-я]+)(?=\s*(?:,|\z))/, 1]
+    t = "#{t} #{nx}" if nx && nx !~ /(?:ский|цкий|ской)\z/
+    [t, m.end(0) + (nx ? nx.size + 1 : 0)]
+  end
 
   def queries(addr)
     a = addr.to_s.tr('ё', 'е').tr('Ё', 'Е').gsub(/\b\d{6}\b,?/, '').strip
-    m = a.match(Obj::PLACE)
-    town = m ? m[2] : a[/(?<![А-Яа-я])Минск(?![а-я])/] && 'Минск'
+    town, at = town_of(a)
     dist = a[/([А-Я][а-я]+(?:ский|цкий|ской))\s+(?:р-н|район)/, 1]
     reg = a =~ /обл/ ? region_of(a) : nil   # «Минское шоссе» — не Минская область
     unless town
@@ -35,11 +52,22 @@ module Geo
       ss = a[/([А-Я][а-я]+(?:ский|цкий|ской))\s+с\/с/, 1]
       return ss && dist ? ["#{ss} сельский Совет, #{dist} район"] : []
     end
+    rest = at ? a[at..] : a
     out = []
-    if (s = a.match(STREET))
-      name = s[2].strip.sub(/\.\s.*\z/, '')   # «ул. Минское шоссе. УТП «БелшинаТранс»» → «Минское шоссе»
+    street = num = nil
+    if (s = rest.match(STREET))
+      name = s[2].strip.gsub(INIT, '').sub(/\.\s.*\z/, '')   # «ул. Минское шоссе. УТП «БелшинаТранс»» → «Минское шоссе»
       street = name =~ /(?:шоссе|проспект|переулок|бульвар|тракт|проезд|площадь)\z/i ? name : "#{ST[s[1].downcase]} #{name}"
-      out << "#{town}, #{street}, #{s[3]}" if s[3]
+      num = s[3]&.delete(' ')
+    elsif (s = rest.match(STREET2))
+      street, num = "#{s[1].strip} #{s[2].downcase}", s[3]&.delete(' ')
+    elsif (s = rest.match(BARE)) && s[1] !~ /(?:ский|цкий|ской)\z/
+      street, num = s[1], s[2]
+    end
+    if street
+      # инициалы: «ул. Ф.Скорины» → «улица Скорины», «ул. Пушкина А.С.» → «улица Пушкина»
+      street = street.gsub(INIT, '').sub(/\s+[А-Я]\.(?:\s?[А-Я]\.)?\z/, '')
+      out << "#{town}, #{street}, #{num}" if num
       out << "#{town}, #{street}"
     end
     out << [town, dist && "#{dist} район", reg].compact.join(', ')
@@ -55,10 +83,12 @@ module Geo
     # дом часто находится как организация в нём («Типография, ул. Урицкого, 19В») — это тоже точный адрес, если номер дома тот же
     num = q[/[\s,](\d+)[а-яa-z]?(?:\/\d+)?\z/i, 1]
     same = num && r.dig('address', 'house_number').to_s[/\A\d+/] == num
-    # улица без дома нашлась как организация на ней («ул. Академика Красина» → библиотека на «улице Красина») — точность «улица»
-    word = q.split(',')[1].to_s.strip.split.last.to_s.downcase
-    on_street = !num && word.size > 2 && r.dig('address', 'road').to_s.downcase.include?(word)
-    prec = %w[building house].include?(r['addresstype']) || r['category'] == 'building' || same ? 'a' : r['addresstype'] == 'road' || on_street ? 's' : 'p'
+    # на той же улице: сервис отдаёт улицу как highway (secondary, residential…), а не road (22.10: такие считались «пунктом»),
+    # или организацию на ней («ул. Академика Красина» → библиотека на «улице Красина»)
+    words = q.split(',')[1].to_s.downcase.split.reject { |w| w.size < 3 || ST.value?(w) }
+    on_street = !words.empty? && words.all? { |w| r.dig('address', 'road').to_s.downcase.include?(w) }
+    prec = %w[building house].include?(r['addresstype']) || r['category'] == 'building' || same ? 'a' :
+           r['addresstype'] == 'road' || r['category'] == 'highway' || on_street ? 's' : 'p'
     [r['lat'].to_f.round(5), r['lon'].to_f.round(5), prec]
   rescue JSON::ParserError
     nil   # сбой — не запоминаем
@@ -99,19 +129,25 @@ module Geo
       File.write(PLACE_REG_FILE, JSON.generate(place_reg))
       no_reg.each { |l| l['region'] = region_of(l['location']) }
     end
-    todo = db.values.select { |l| l['status'] == 'active' && !l.key?('geo') && l['geo_try'].to_i < 2 }
+    # V — разбор адреса поправлен (22.10): лоты, где на карте был только пункт или карты не было, ищем заново;
+    # запросы с улицей — в кеше под новым ключом «2|…» (старые ответы считали улицу «пунктом»)
+    todo = db.values.select { |l| l['status'] == 'active' && l['geo_try'].to_i < 2 &&
+                                  (!l.key?('geo') || (l['geo_v'] != V && (l['geo'].nil? || l['geo'][2] == 'p'))) }
     todo.each do |l|
       break if asked >= CAP || Time.now > stop
       addr = l['platform'] == 'konfiskat.by' ? Obj.storage(Obj.rows_of(Store.details(l['key']))) : l['location']
       qs = queries(addr)
+      l['geo_v'] = V
       if qs.empty?
         l['geo'] = nil
         next
       end
+      keys = qs.each_with_index.map { |q, i| i < qs.size - 1 ? "#{V}|#{q}" : q }
       hit = nil
       failed = false
-      qs.each do |q|
-        unless cache.key?(q)
+      qs.each_with_index do |q, i|
+        k = keys[i]
+        unless cache.key?(k)
           break if asked >= CAP
           r = ask(q)
           asked += 1
@@ -120,15 +156,16 @@ module Geo
             failed = true
             break
           end
-          cache[q] = r
+          cache[k] = r
         end
-        (hit = cache[q]) && hit != 0 && break
+        (hit = cache[k]) && hit != 0 && break
         hit = nil
       end
       if hit
         l['geo'] = hit
         stat['на карте: найден адрес'] += 1
-      elsif failed || !qs.all? { |q| cache.key?(q) }
+      elsif failed || !keys.all? { |k| cache.key?(k) }
+        l.delete('geo_v')   # не досчитали — в следующий прогон
         l['geo_try'] = l['geo_try'].to_i + 1   # сервис не ответил или вышел лимит — попробуем в следующий раз
       else
         l['geo'] = nil   # сервис такого адреса не знает

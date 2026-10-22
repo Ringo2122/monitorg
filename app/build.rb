@@ -38,6 +38,7 @@ require_relative 'vat'
 require_relative 'chance'
 require_relative 'brands'
 require_relative 'pages'
+require 'cgi'
 
 OUT  = ENV['OUT'] || File.join(Store::ROOT, '_site')
 TMP  = File.join(Store::ROOT, 'tmp')
@@ -48,7 +49,7 @@ PACKS = 1000
 # свежий архив — arch.js (календарь на главной, недавние лоты), старше — arch2.js
 ARCH_NEW = 45
 KEEP = %w[id art name price req_to torg url location region city debtor area_num platform section off
-          photo pk market prices status closed why first_seen alt pin result phx land sub chance brand].freeze
+          photo pk market prices status closed why first_seen alt pin result phx land sub chance brand u].freeze
 SECS = %w[nedvizhimost avto gruz spec oborud arenda].freeze
 
 # Персональные данные: MASK=1 скрывает ФИО должников-физлиц и контактных лиц по осмотру.
@@ -387,6 +388,7 @@ puts "похожие торги: у #{sim.count { |_, v| v['c'] }} лотов, �
 
 # подробности — пачками с постоянным номером (PACKS): порядок лотов на номер пачки не влияет.
 # Фото — каждое отдельным файлом ph/<id>.jpg: странице лота нужно одно фото, а не пачка из 40 (0,6–0,9 МБ)
+Pages.prepare(active: active, arch: arch, details: ->(k) { Store.details(k) }, now: now)
 order = active.group_by { |l| l['section'] }.values.flatten + arch
 packs = 0
 vat_stat = Hash.new(0)
@@ -512,20 +514,45 @@ SEO_DEF = { 'seo_title' => 'МониТорг - торги по имуществ�
             'seo_short' => 'Агрегатор торгов по имуществу со всех площадок Беларуси' }.freeze
 seo = SEO_DEF.map { |k, v| t = ((CFG['texts'] || {})[k]).to_s.strip; [k, (t.empty? ? v : t).gsub('&', '&amp;').gsub('"', '&quot;').gsub('<', '&lt;')] }.to_h
 tpl = tpl.gsub('__TITLE__', seo['seo_title']).gsub('__DESC__', seo['seo_desc']).gsub('__SHORT__', seo['seo_short']).gsub('__BRAND__', seo['seo_brand'])
-html = tpl.sub('__DATA__') { JSON.generate(active.map(&slim)) }
-          .sub('__SNAP__', now.to_s).sub('__ARCHN__') { JSON.generate(archn) }
-          .sub('__CFG__') { JSON.generate(pub) }
-          .sub('__PLACES__') { JSON.generate(PLACES.transform_values { |v| v.map(&:first) + [OTHER_PLACE] }) }
-          .sub('__NPLAT__', nplat.to_s)
-          .sub('__THEME__') { JSON.generate((pub['home'] || {})['theme'] || {}) }   # общий стиль — до отрисовки, без мигания
-File.write(File.join(OUT, 'index.html'), html)
+# Оболочка страницы (22.10, SEO этап 3) — одна для главной и всех SEO-страниц: заголовок, шапка, подвал, плашка cookie —
+# из шаблона; стили, тема, данные и приложение — общими файлами /assets/* (браузер кеширует их один раз на все страницы)
+tpl_head = tpl[0...tpl.index('<script>')]
+i_js = tpl.index("<script>\nconst DATA = window.MT_DATA;") or abort 'шаблон: нет начала приложения'
+body_tpl = tpl[(tpl.index('</style>') + 8)...i_js]
+FileUtils.mkdir_p(File.join(OUT, 'assets'))
+File.write(File.join(OUT, 'assets', 'site.css'), tpl[%r{<style>(.*?)</style>}m, 1] + Pages::CSS)
+File.write(File.join(OUT, 'assets', 'theme.js'), tpl[%r{<script>\s*(/\* Общий стиль.*?)</script>}m, 1]
+  .sub('__THEME__') { JSON.generate((pub['home'] || {})['theme'] || {}) })   # общий стиль — до отрисовки, без мигания
+File.write(File.join(OUT, 'assets', 'app.js'), tpl[(i_js + 8)...tpl.rindex('</script>')])
+File.write(File.join(OUT, 'assets', 'data.js'),
+           "window.MT_DATA=#{JSON.generate(active.map(&slim))};window.MT_SNAP=#{now};window.MT_ARCHN=#{JSON.generate(archn)};" \
+           "window.MT_CFG=#{JSON.generate(pub)};window.MT_NPLAT=#{nplat};" \
+           "window.MT_PLACES=#{JSON.generate(PLACES.transform_values { |v| v.map(&:first) + [OTHER_PLACE] })};")
+SHELL = lambda do |title: nil, desc: nil, path: nil, robots: 'noindex, nofollow', ld: [], route: nil, main: ''|
+  e = ->(x) { CGI.escapeHTML(x.to_s) }
+  head = tpl_head.sub(/<meta name="robots" content="[^"]*">/) { %(<meta name="robots" content="#{robots}">) }
+  if title
+    head = head.sub(%r{<title>.*?</title>}m) { "<title>#{e.(title)}</title>" }
+               .sub(/<meta property="og:title" content="[^"]*">/) { %(<meta property="og:title" content="#{e.(title)}">) }
+  end
+  if desc
+    head = head.sub(/<meta name="description" content="[^"]*">/) { %(<meta name="description" content="#{e.(desc)}">) }
+               .sub(/<meta property="og:description" content="[^"]*">/) { %(<meta property="og:description" content="#{e.(desc)}">) }
+  end
+  head += %(<link rel="canonical" href="https://monitorg.by#{path}">\n) if path
+  head += %(<meta name="mt-route" content="#{e.(route)}">\n) if route
+  head += %(<script src="/assets/theme.js?v=#{now}"></script>\n<link rel="stylesheet" href="/assets/site.css?v=#{now}">\n)
+  head += ld.map { |x| %(<script type="application/ld+json">#{JSON.generate(x).gsub('</', '<\/')}</script>\n) }.join
+  head + body_tpl.sub('<main id="app"></main>') { %(<main id="app">#{main}</main>) } +
+    %(<script src="/assets/data.js?v=#{now}"></script>\n<script src="/assets/app.js?v=#{now}"></script>\n)
+end
+File.write(File.join(OUT, 'index.html'), SHELL.())
 File.write(File.join(OUT, 'arch.js'), "__arch(#{JSON.generate(arch1.map(&slim))});")
 # SEO-страницы (app/pages.rb): разделы, срезы, площадки, лоты, sitemap. SEO_PAGES=0 — не собирать
 unless ENV['SEO_PAGES'] == '0'
   t0 = Time.now
   r = Pages.run(out: OUT, active: active, arch: arch, details: ->(k) { Store.details(k) }, tree: Cats.tree, now: now,
-                template: File.read(File.join(__dir__, 'site.tpl.html'), encoding: 'UTF-8'),
-                theme: JSON.generate((pub['home'] || {})['theme'] || {}), ver: now.to_s, live: ENV['SEO_LIVE'] == '1')
+                shell: SHELL, live: ENV['SEO_LIVE'] == '1')
   puts "SEO-страницы: #{r[:pages]} (открыто поиску #{r[:indexed]}), лотов #{r[:lots]}, срезов #{r[:slices]}, #{(Time.now - t0).round} с"
 end
 # поиск по описанию: то, чего нет в карточке, — номера объекта, адрес, марка и модель, начало описания

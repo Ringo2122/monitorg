@@ -907,14 +907,28 @@ const ntfForm = (all, hint) => `<div class="panel"><h2>${all ? 'Уведомле
   <p class="muted" style="margin-top:0">${hint}</p>
   <label class="fld"><span>Заголовок - до 120 знаков</span><input id="n-title" maxlength="120" placeholder="${all ? 'Например: Квартира в центре Минска со скидкой 30%' : 'Например: Подобрали вам объект'}"></label>
   <label class="fld"><span>Текст - до 1000 знаков, необязательно</span><textarea id="n-body" rows="3" maxlength="1000"></textarea></label>
-  <label class="fld"><span>Лот - адрес на сайте или номер, необязательно (уведомление будет вести на него)</span><input id="n-lot" placeholder="…/#/lot/bt-145082 или bt-145082"></label>
+  <label class="fld"><span>Лот - адрес на сайте или номер, необязательно (уведомление будет вести на него)</span><input id="n-lot" placeholder="адрес лота на сайте или номер, напр. bt-145082"></label>
   <div class="saverow"><button class="btn pri" id="n-send">${all ? 'Отправить всем' : 'Отправить'}</button><span class="muted" id="n-ask"></span></div></div>`;
+// номер лота из того, что вставили: номер, старая ссылка …/#/lot/<номер> или новый адрес …/lot/<имя>-<номер>/ (22.10, SEO этап 3) —
+// новый адрес переводим в номер по /assets/lot-urls.json (номер → адрес; есть у активных и у архива за 18 месяцев)
+let LOTURLS = null;
+async function lotIdOf(v){
+  v = String(v || '').trim(); if(!v) return '';
+  let m = v.match(/#\/lot\/([^?#]+)/); if(m) return decodeURIComponent(m[1]);
+  m = v.match(/\/lot\/([^/?#]+)/); if(!m) return v.replace(/[?#].*$/, '');
+  const path = '/lot/' + decodeURIComponent(m[1]) + '/';
+  try{ LOTURLS = LOTURLS || await (await fetch('../assets/lot-urls.json', { cache:'no-cache' })).json(); }catch(e){ LOTURLS = {}; }
+  const id = Object.keys(LOTURLS).find(k => LOTURLS[k] === path);
+  if(!id) throw new Error('Лот по этому адресу не найден — вставьте номер лота');
+  return id;
+}
 function ntfBind(userId, done){
   let armed = false;
   $('#n-send').onclick = async () => {
     const title = $('#n-title').value.trim(), body = $('#n-body').value.trim(),
-          lot = $('#n-lot').value.trim().replace(/^.*#\/lot\//, '').replace(/[?#].*$/, '');
+          lotIn = $('#n-lot').value;
     if(!title){ toast('Нужен заголовок', true); $('#n-title').focus(); return; }
+    let lot; try{ lot = await lotIdOf(lotIn); }catch(err){ toast(err.message, true); return; }
     // рассылка всем — со второго нажатия: первое только предупреждает
     if(userId == null && !armed){ armed = true; $('#n-ask').textContent = 'Нажмите ещё раз, чтобы отправить всем'; $('#n-send').textContent = 'Да, отправить всем'; return; }
     try{
@@ -1006,7 +1020,7 @@ async function pUser(id, params){
       <div class="grid2"><label class="fld"><span>Лот</span><select id="r-lot"><option value="">- без привязки к лоту -</option>
           ${opts.map(x=>`<option value="${esc(x)}"${x===pre?' selected':''}>${esc(lots[x].name.slice(0,90))}</option>`).join('')}</select>
           <span class="hint">Лоты из избранного и заявок пользователя.</span></label>
-        <label class="fld"><span>Или адрес лота на сайте</span><input id="r-lotid" placeholder="…/#/lot/bt-145082 или bt-145082" value="${esc(pre && !opts.includes(pre) ? pre : '')}"></label></div>
+        <label class="fld"><span>Или адрес лота на сайте</span><input id="r-lotid" placeholder="адрес лота на сайте или номер, напр. bt-145082" value="${esc(pre && !opts.includes(pre) ? pre : '')}"></label></div>
       <label class="fld"><span>Заголовок</span><input id="r-title" placeholder="Например: Проверка объекта перед задатком"></label>
       <label class="fld"><span>Текст отчёта</span><textarea id="r-body" rows="9" placeholder="Выводы, риски, рекомендации по цене…"></textarea></label>
       <div class="grid2"><label class="fld"><span>Ссылка (необязательно)</span><input id="r-link" placeholder="https://…"></label>
@@ -1028,7 +1042,8 @@ async function pUser(id, params){
   if($('#n-send')) ntfBind(id, () => { $('#n-title').value = $('#n-body').value = $('#n-lot').value = ''; });
   $('#r-send').onclick = async ()=>{
     const btn = $('#r-send'), title = $('#r-title').value.trim(), file = $('#r-file').files[0];
-    let lot = $('#r-lot').value || $('#r-lotid').value.trim().replace(/^.*#\/lot\//,'');
+    let lot = $('#r-lot').value;
+    if(!lot){ try{ lot = await lotIdOf($('#r-lotid').value); }catch(err){ toast(err.message, true); return; } }
     if(!title){ toast('Впишите заголовок', true); return; }
     if(file && file.size > 5*1024*1024){ toast('Файл больше 5 МБ', true); return; }
     btn.disabled = true;
@@ -1129,7 +1144,7 @@ async function pNewsEdit(slug){
     if(!v('n-date')){ toast('Нужна дата', true); return; }
     const src = v('n-src'), cu = v('n-ctau');
     if(src && !/^https?:\/\//i.test(src)){ toast('Ссылка на источник — с https://', true); return; }
-    if(cu && !/^(https?:\/\/|#\/)/i.test(cu)){ toast('Кнопка ведёт на https://… или на раздел сайта #/…', true); return; }
+    if(cu && !/^(https?:\/\/|#\/|\/(?!\/))/i.test(cu)){ toast('Кнопка ведёт на https://… или на страницу сайта: /transport/, #/…', true); return; }
     if(s2 !== slug && (await api(`news?slug=eq.${enc(s2)}&select=slug`)).length){ toast('Статья с таким адресом уже есть — измените адрес', true); return; }
     const row = { slug:s2, date:v('n-date'), title:v('n-title'), lead:v('n-lead') || null, body:$('#n-body').value.trim() || null, photo:photo || null,
       src:src || null, src_name:v('n-srcn') || null, cta_text:v('n-ctat') || null, cta_url:cu || null, published:$('#n-pub').checked, updated_at:nowIso() };

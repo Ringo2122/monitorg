@@ -193,60 +193,11 @@ module Pages
   end
 
   # ── обвязка страницы ──
-  def head_tags(title, desc, path, robots, ld)
-    <<~HTML
-      <!doctype html>
-      <html lang="ru"><head><meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1">
-      <meta name="robots" content="#{robots}">
-      <title>#{h(title)}</title>
-      <meta name="description" content="#{h(desc)}">
-      <link rel="canonical" href="#{SITE}#{path}">
-      <meta property="og:type" content="website"><meta property="og:site_name" content="МониТорг"><meta property="og:title" content="#{h(title)}"><meta property="og:description" content="#{h(desc)}"><meta property="og:url" content="#{SITE}#{path}">
-      <link rel="stylesheet" href="/fonts/fonts.css?v=1"><link rel="stylesheet" href="/assets/site.css?v=#{@ver}">
-      <link rel="icon" href="/favicon.ico?v=3" sizes="32x32"><link rel="icon" href="/favicon.svg?v=3" type="image/svg+xml"><link rel="apple-touch-icon" href="/apple-touch-icon.png?v=3">
-      #{@theme}
-      #{ld.map { |x| %(<script type="application/ld+json">#{JSON.generate(x).gsub('</', '<\/')}</script>) }.join("\n")}
-      </head><body>
-    HTML
-  end
-
-  # шапка — как у сайта (index.html): «Весь каталог», те же пункты меню, поиск, кабинет, «Помощь в аукционе».
-  # Пока ведут в приложение на главной (адреса с #); на телефоне меню открывает /assets/page.js
-  NAV_LINKS = [['/#/', 'Главная'], ['/#/catalog', 'Все лоты'], ['/#/catalog?st=arch', 'Архив'], ['/#/calc', 'Калькуляторы'],
-               ['/#/news', 'Новости'], ['/#/about', 'О платформе']].freeze
-  def header
-    grid = '<span class="cg"><svg class="g" viewBox="0 0 24 24"><rect x="4" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6"/>' \
-           '<rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6"/></svg></span>'
-    nav = %(<li class="cm-li"><a class="cbtn" href="/#/catalog">#{grid}<span>Весь каталог</span></a></li>) +
-          NAV_LINKS.map { |u, t| %(<li><a href="#{u}">#{t}</a></li>) }.join
-    <<~HTML
-      <header class="main"><div class="wrap hrow">
-        <a class="logo" href="/"><img class="mark ml" src="/logo-mark.png" alt=""><img class="mark md" src="/logo-mark-dark.png" alt="">
-          <span class="lt"><span class="nm">МониТорг</span><span class="sub">Первый агрегатор<br>торгов Беларуси</span></span></a>
-        <nav class="hnav" aria-label="Разделы сайта"><ul id="nav">#{nav}</ul></nav>
-        <div class="hacts">
-          <a class="hs-btn" href="/#/catalog" aria-label="Поиск по лотам" title="Поиск"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg></a>
-          <a class="hs-btn ubtn" href="/#/me" aria-label="Личный кабинет" title="Личный кабинет"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg></a>
-          <a class="btn pri" href="/#/help"><span class="h-long">Помощь в аукционе</span><span class="h-short">Помощь</span></a>
-          <button class="hs-btn mburg" id="mburg" type="button" aria-label="Меню" aria-expanded="false" aria-controls="mmenu"><svg class="b" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
-        </div>
-      </div><div class="mmenu" id="mmenu">#{NAV_LINKS.map { |u, t| %(<a href="#{u}">#{t}</a>) }.join}<a class="btn pri" href="/#/help">Помощь в аукционе</a></div>
-      </header><div class="hsp" aria-hidden="true"></div>
-    HTML
-  end
-
-  def footer
-    plats = PLAT_NAME.select { |d, _| @plat_n[d].to_i.positive? }.map { |d, n| %(<li><a href="/ploshchadki/#{slug(d.sub(/\.by\z/, ''))}/">#{h(n)}</a></li>) }.join
-    <<~HTML
-      <footer class="main"><div class="wrap"><div class="fcols">
-        <div><h4>МониТорг</h4><p style="margin:0;color:#a1a1aa">Агрегатор торгов по имуществу должников: банкротство, исполнительное производство, конфискат. Все площадки Беларуси в одном каталоге.</p></div>
-        <div class="fsrc"><h4>Площадки</h4><ul>#{plats}</ul></div></div>
-        <div class="fbot">Данные собираются с открытых площадок автоматически. Перед участием в торгах проверяйте условия на площадке.
-          · <a href="/#/privacy">Политика конфиденциальности</a> · <a href="/#/cookies">Политика cookie</a></div>
-      </div></footer><script src="/assets/page.js?v=#{@ver}"></script></body></html>
-    HTML
-  end
+  # Оболочка — та же, что у главной (build.rb): шапка, подвал, плашка cookie, приложение (/assets/app.js) с данными.
+  # Приложение запускается поверх готового текста и рисует страницу по маршруту из <meta name="mt-route"> (этап 3, 22.10)
+  CSS = ".pager{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0}.pager a,.pager b{padding:6px 12px;border:1px solid var(--hair);border-radius:8px}" \
+        ".pager b{background:var(--brand);color:#fff;border-color:var(--brand)}.seo-links ul{display:flex;flex-wrap:wrap;gap:8px 18px;padding:0;list-style:none}" \
+        ".seo-links small{color:var(--ink-3)}.panel.res{padding:14px 16px;margin-top:15px}.panel.res .sub{color:var(--ink-2);font-size:13px;margin-top:4px}\n"
 
   def crumbs(parts)
     li = [['Главная', '/']] + parts
@@ -256,11 +207,11 @@ module Pages
     [%(<div class="crumbs">#{vis}</div>), ld]
   end
 
-  def write(path, title, desc, body, ld, index)
+  def write(path, title, desc, body, ld, index, route)
     robots = !@live ? 'noindex, nofollow' : index ? 'index, follow' : 'noindex, follow'
     dir = File.join(@out, path)
     FileUtils.mkdir_p(dir)
-    File.write(File.join(dir, 'index.html'), head_tags(title, desc, path, robots, ld) + header + %(<main id="app">#{body}</main>) + footer)
+    File.write(File.join(dir, 'index.html'), @shell.(title: title, desc: desc, path: path, robots: robots, ld: ld, route: route, main: body))
     @sitemap << [path, @lastmod[path] || @now] if index
     @n += 1
   end
@@ -342,7 +293,7 @@ module Pages
 
         </div>
       HTML
-      write(p, pg > 1 ? "#{title} — страница #{pg}" : title, desc, body, [ld_b, ld_list], index)
+      write(p, pg > 1 ? "#{title} — страница #{pg}" : title, desc, body, [ld_b, ld_list], index, app_link.sub(%r{\A/#}, ''))
     end
   end
 
@@ -447,16 +398,32 @@ module Pages
     prod['image'] = "#{SITE}/ph/#{l['photo']}.jpg" if l['photo']
     prod['brand'] = { '@type' => 'Brand', 'name' => l['brand'] } if l['brand'] && l['brand'] != 'Другие'
     open = !arch || l['closed'].to_i > @now - ARCH_DAYS * 86_400
-    write(lot_path(l), title, desc, body, [ld_b, prod], open)
+    write(lot_path(l), title, desc, body, [ld_b, prod], open, "/lot/#{l['id']}")
+  end
+
+  # Имена и адреса страниц лотов (вызывается сборкой до записи данных приложения: у лота — поле u, «имя-номер»)
+  def prepare(active:, arch:, details:, now:)
+    @short = {}
+    @lp = {}
+    (active + arch.select { |l| l['closed'].to_i > now - ARCH_DAYS * 86_400 }).each do |l|
+      rows = details.call(l['key']).flat_map { |s| s['rows'] || [] }
+      # марка у архивных — тоже (в сборке она пока только у активных): короткое имя и страницы марок
+      l['brand'] ||= Brands.of(l, rows) if BRAND_SUBS.include?(l['sub'].to_s.split('/')[1]) && l['sub'].to_s.start_with?('transport/')
+      sh = short(l, rows)
+      @short[l['id']] = sh
+      l['u'] = [slug(sh, 50), idpart(l['id'])].reject(&:empty?).join('-')
+      @lp[l['id']] = "/lot/#{l['u']}/"
+    end
+    @lp
   end
 
   # ── всё вместе ──
   # out — папка сайта; active, arch — показанные лоты; details — ->(key) { [{h, rows}] }; tree — Cats.tree
-  def run(out:, active:, arch:, details:, tree:, now:, template:, theme:, ver:, live: false)
+  def run(out:, active:, arch:, details:, tree:, now:, shell:, live: false)
+    @shell = shell
     @out = out
     @now = now
     @live = live
-    @ver = ver
     @details = details
     @n = 0
     @sitemap = []
@@ -469,39 +436,7 @@ module Pages
     active.each { |l| @plat_n[l['platform']] += 1 }
     arch.each { |l| @plat_n[l['platform']] += 1 }
 
-    # стили и тема — из шаблона приложения: страницы выглядят так же
-    FileUtils.mkdir_p(File.join(out, 'assets'))
-    File.write(File.join(out, 'assets', 'site.css'), template[%r{<style>(.*?)</style>}m, 1].to_s +
-      "\n.pager{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0}.pager a,.pager b{padding:6px 12px;border:1px solid var(--hair);border-radius:8px}" \
-      ".pager b{background:var(--brand);color:#fff;border-color:var(--brand)}.seo-links ul{display:flex;flex-wrap:wrap;gap:8px 18px;padding:0;list-style:none}" \
-      ".seo-links small{color:var(--ink-3)}" \
-      ".hnav a.cbtn{display:flex;padding:0 15px 0 6px;color:#fff;font-size:14px}.hnav a.cbtn:hover{background:var(--accent-h);color:#fff}" \
-      ".panel.res{padding:14px 16px;margin-top:15px}.panel.res .sub{color:var(--ink-2);font-size:13px;margin-top:4px}\n")
-    File.write(File.join(out, 'assets', 'theme.js'), template[%r{<script>\s*(/\* Общий стиль.*?)</script>}m, 1].to_s.sub('__THEME__') { theme })
-    @theme = %(<script src="/assets/theme.js?v=#{ver}"></script>)
-    # меню на телефоне и прилипающая шапка — минимум из приложения
-    File.write(File.join(out, 'assets', 'page.js'), <<~JS)
-      (function(){var b=document.getElementById('mburg'),r=document.documentElement;
-      if(b)b.onclick=function(e){e.stopPropagation();var on=!r.classList.contains('mm-open');r.classList.toggle('mm-open',on);b.setAttribute('aria-expanded',on);};
-      document.addEventListener('click',function(e){if(r.classList.contains('mm-open')&&!e.target.closest('#mmenu,#mburg'))r.classList.remove('mm-open');});
-      var h=document.querySelector('header.main');if(h)r.style.setProperty('--hh',h.offsetHeight+'px');
-      var cb=document.querySelector('.hnav .cbtn'),row=document.querySelector('header.main .hrow'),lg=document.querySelector('header.main .logo'),ac=document.querySelector('header.main .hacts');
-      function fit(){if(!cb||!row)return;cb.classList.remove('ico');var pr=parseFloat(getComputedStyle(row).paddingRight)||0;
-        if(ac.getBoundingClientRect().right>row.getBoundingClientRect().right-pr+1||lg.scrollWidth>lg.clientWidth+1)cb.classList.add('ico');}
-      fit();addEventListener('resize',fit);if(document.fonts)document.fonts.ready.then(fit);})();
-    JS
-
-    # имена и адреса лотов
-    @short = {}
-    @lp = {}
-    all.each do |l|
-      rows = details.call(l['key']).flat_map { |s| s['rows'] || [] }
-      # марка у архивных — тоже (в сборке она пока только у активных): короткое имя и страницы марок
-      l['brand'] ||= Brands.of(l, rows) if BRAND_SUBS.include?(l['sub'].to_s.split('/')[1]) && l['sub'].to_s.start_with?('transport/')
-      sh = short(l, rows)
-      @short[l['id']] = sh
-      @lp[l['id']] = "/lot/#{[slug(sh, 50), idpart(l['id'])].reject(&:empty?).join('-')}/"
-    end
+    prepare(active: active, arch: arch, details: details, now: now) unless @lp
 
     recent = ->(l) { l['status'] == 'active' || l['closed'].to_i > now - YEAR }
     @act_by_sub = active.group_by { |l| l['sub'] }
