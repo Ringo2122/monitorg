@@ -99,6 +99,9 @@ lots.each do |l|
   if l['status'] == 'active' && l['req_to'].to_i <= now
     l.merge!('status' => 'archive', 'closed' => l['req_to'], 'why' => 'deadline')
   end
+  if l['platform'] == 'konfiskat.by' && (a = l['name'].to_s[/по адресу:?\s*(.+)/, 1]) && !region_of(a).empty?
+    l['location'] = a.sub(/,?\s*общая площадь.*/i, '').strip[0, 160]
+  end
   l['location'] = 'г. Минск' if l['platform'] == 'konfiskat.by' && l['location'].to_s.strip.empty?
   l['region'] = region_of(l['location'])
   if %w[nedvizhimost arenda].include?(l['section']) && !l['area_num'].to_f.positive?
