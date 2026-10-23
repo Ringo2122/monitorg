@@ -101,7 +101,16 @@ module Pages
       t = t.split(/(\s+)/).map { |w| w =~ /\d/ || w !~ /[А-ЯЁ]/ ? w : w.downcase }.join
       t = t[0].upcase + t[1..-1].to_s
     end
+    t = tidy(t)
     t.empty? ? 'Лот' : t
+  end
+
+  def tidy(t)
+    t = t.gsub(/(?<![[:alpha:]])([[:alpha:]]{3,})\s+\1(?![[:alpha:]])/i, '\1')
+    t = t.delete('"') if t.count('"').odd?
+    t = t.delete('«»') if t.count('«') != t.count('»')
+    t = t.gsub(/\s+([,;)])/, '\1').gsub(/([,;])(?:\s*[,;])+/, '\1')
+    t.gsub(/\s{2,}/, ' ').strip
   end
 
   def area_txt(l, txt)
@@ -130,7 +139,7 @@ module Pages
         end
       end
       model = model.sub(/\A#{Regexp.escape(l['brand'])}\s*/i, '').split.map { |w| w =~ /\A[A-ZА-ЯЁ]{3,}\z/ ? w.capitalize : w }.join(' ')
-      return [l['brand'].sub(' (ВАЗ)', ''), model].reject(&:empty?).join(' ') + (yr ? ", #{yr}" : '')
+      return tidy([l['brand'].sub(' (ВАЗ)', ''), model].reject(&:empty?).join(' ') + (yr ? ", #{yr}" : ''))
     elsif sub == 'doli' && (fr = t[/\A\s*(\d+\s*\/\s*\d+)/, 1])
       obj = t[/собственности\s+на\s+([^,;(:]+?)(?=\s+(?:с\s+инв|площадью|общей|расположен|по адресу|в\s+(?:аг|д|г|гп|п)\.)|[,;(:]|\z)/i, 1].to_s.strip
       t = ["#{fr.delete(' ')} доли#{obj.empty? ? '' : " на #{obj}"}", settlement(l)].compact.join(', ')
@@ -145,7 +154,7 @@ module Pages
       st = settlement(l)
       t = [parts, st].compact.reject(&:empty?).join(', ') unless parts.empty?
     end
-    t.size > 55 ? t[0, 55].sub(/[\s,;:(-]+[^\s]*\z/, '') : t
+    tidy(t.size > 55 ? t[0, 55].sub(/[\s,;:(-]+[^\s]*\z/, '') : t)
   end
 
   def town(l)
@@ -188,6 +197,7 @@ module Pages
 
   def write(path, title, desc, body, ld, index, route)
     robots = !@live ? 'noindex, nofollow' : index ? 'index, follow' : 'noindex, follow'
+    desc = desc[0, 167].sub(/[\s,;:–—-]+\S*\z/, '') + '…' if desc.size > 170
     dir = File.join(@out, path)
     FileUtils.mkdir_p(dir)
     File.write(File.join(dir, 'index.html'), @shell.(title: title, desc: desc, path: path, robots: robots, ld: ld, route: route, main: body))
@@ -273,7 +283,7 @@ module Pages
 
         </div>
       HTML
-      write(p, pg > 1 ? "#{title} — страница #{pg}" : title, desc, body, [ld_b, ld_list], index, app_link.sub(%r{\A/#}, ''))
+      write(p, pg > 1 ? "#{title} — страница #{pg}" : title, pg > 1 ? "Страница #{pg}. #{desc}" : desc, body, [ld_b, ld_list], index, app_link.sub(%r{\A/#}, ''))
     end
   end
 
@@ -348,21 +358,21 @@ module Pages
     tail, desc =
       if !arch
         ["торги #{dt(l['torg'] || l['req_to'])}",
-         [price ? "Начальная цена #{price}" : 'Цена — в условиях торгов', "заявки до #{dt(l['req_to'])}."].join(', ') +
+         "#{sh}: " + [price ? "начальная цена #{price}" : 'цена в условиях торгов', "заявки до #{dt(l['req_to'])}."].join(', ') +
            " Торги #{plat}.#{reg ? " #{reg}." : ''} Похожие лоты и итоги торгов — на МониТорге."]
       elsif %w[sold single].include?(st) && r['price'].to_f.positive?
         ["продан за #{nf(r['price'])} BYN",
-         "Итоги торгов #{dt(r['at'] || l['closed'])}: продан за #{nf(r['price'])} BYN" +
+         "#{sh}: итоги торгов #{dt(r['at'] || l['closed'])}, продан за #{nf(r['price'])} BYN" +
            ((r['start'] || l['price']).to_f.positive? ? " при начальной #{nf(r['start'] || l['price'])} BYN" : '') +
            "#{r['bids'].to_i.positive? ? ", ставок: #{r['bids']}" : ''}. Похожие лоты на торгах сейчас."]
       elsif st == 'failed'
         ["торги #{dt(r['at'] || l['closed'])} не состоялись",
-         "Торги #{dt(r['at'] || l['closed'])} не состоялись#{price ? ", начальная цена #{price}" : ''}. Такие лоты часто выставляют снова со скидкой — следите на МониТорге."]
+         "#{sh}: торги #{dt(r['at'] || l['closed'])} не состоялись#{price ? ", начальная цена #{price}" : ''}. Такие лоты часто выставляют снова со скидкой — следите на МониТорге."]
       elsif l['why'] == 'removed'
-        ['снят с торгов', 'Лот снят с торгов до аукциона. Похожие объекты на торгах сейчас.']
+        ['снят с торгов', "#{sh}: лот снят с торгов до аукциона#{price ? ", начальная цена #{price}" : ''}.#{reg ? " #{reg}." : ''} Похожие объекты на торгах сейчас."]
       else
         ["торги завершены #{dt(l['closed'])}",
-         "Приём заявок завершён #{dt(l['closed'])}#{price ? ", начальная цена #{price}" : ''}. Похожие лоты на торгах сейчас."]
+         "#{sh}: приём заявок завершён #{dt(l['closed'])}#{price ? ", начальная цена #{price}" : ''}. Похожие лоты на торгах сейчас."]
       end
     [lot_title(sh, tn, tail), desc[0, 300], tail]
   end
@@ -565,8 +575,11 @@ module Pages
       act, done = split.(ls)
       secs = act.group_by { |l| l['sub'].to_s.split('/').first }.map { |k, v| [(@tops.find { |t| t[:k] == k } || {})[:n], v.size] }.select(&:first)
       nm = PLAT_NAME[pl] || pl
-      list_page("/ploshchadki/#{slug(pl.sub(/\.by\z/, ''))}/", title_fit("#{nm} (#{pl}) — все лоты на торгах | МониТорг"), "Лоты площадки «#{nm}»",
-                "#{lots_n(act.size)} на площадке «#{nm}»: #{secs.map { |n, c| "#{n.downcase} — #{c}" }.join(', ')}. Итоги торгов и удобный поиск — на МониТорге.",
+      pt = nm.size > 25 ? "#{nm}: все лоты на торгах | МониТорг" : "#{nm} (#{pl}) — все лоты на торгах | МониТорг"
+      pd = ->(ss) { "#{lots_n(act.size)} на площадке «#{nm}»#{ss.any? ? ": #{ss.map { |n, c| "#{n.downcase} — #{c}" }.join(', ')}" : ''}. Итоги торгов и удобный поиск — на МониТорге." }
+      ss = secs.sort_by { |_, c| -c }
+      ss = ss[0..-2] while ss.any? && pd.(ss).size > 160
+      list_page("/ploshchadki/#{slug(pl.sub(/\.by\z/, ''))}/", title_fit(pt), "Лоты площадки «#{nm}»", pd.(ss),
                 [['Площадки', nil], [nm, nil]], act, done, [], "/#/catalog?plat=#{CGI.escape(pl)}", true)
     end
 
@@ -578,6 +591,8 @@ module Pages
     @meta.each { |id, m| m[0] = m[0].sub(" — #{m[2]}", ", лот № #{art[id]} — #{m[2]}") if dup[m[0]] }
     dup = @meta.values.group_by(&:first).select { |_, v| v.size > 1 }.keys.to_h { |t| [t, true] }
     @meta.each { |id, m| m[0] = m[0].sub(/, лот № [^—]+ — /, ", #{id} — ") if dup[m[0]] }
+    dupd = @meta.values.group_by { |m| m[1] }.select { |_, v| v.size > 1 }.keys.to_h { |t| [t, true] }
+    @meta.each { |id, m| m[1] = "Лот № #{art[id]}. #{m[1]}" if dupd[m[1]] }
     all.each { |l| lot_page(l) }
 
     lots_sm, other = @sitemap.partition { |p, _| p.start_with?('/lot/') }

@@ -21,8 +21,20 @@ module Geo
   STREET2 = %r{(?:\A|,)\s*([^,]+?)\s+(улица|переулок|проспект|бульвар|площадь|проезд|тракт|шоссе)#{HOUSE}}i
   BARE = /\A\s*,\s*([А-Я][А-Яа-я\-]+(?:\s[А-Я][А-Яа-я\-]+)?)\s*,\s*(?:д\.\s*)?(\d+[а-я]?(?:\/\d+)?)\s*(?:[,.]|\z)/
 
+  STREET_PART = /\A(?:ул\.|улица|пр-т|просп|проспект|пер\.|переулок|бульвар|б-р|шоссе|тракт|проезд|пл\.|площадь|мкр|микрорайон)(?![а-я])|\s(?:улица|шоссе|проспект|переулок|бульвар|тракт|проезд)\z/i
+  def bare_town(a)
+    if (m = a.match(/(?:\A|[\s,])(?:н\.\s?п\.|(?:гп|аг|рп|пгт)(?=\s))\s*([А-Я][а-я]+(?:-[А-Я][а-я]+)?)/))
+      return [m[1], m.end(0)]
+    end
+    parts = a.split(',').map(&:strip)
+    i = parts.index { |p| p =~ STREET_PART } or return nil
+    c = i.positive? ? parts[i - 1] : nil
+    return nil unless c && c =~ /\A[А-Я][а-я]+(?:[- ][А-Я][а-я]+)?\z/ && c !~ /(?:ская|ский|цкий|ской|кая)\z|обл|район|сельсовет/i
+    [c, a.index(c) + c.size]
+  end
+
   def town_of(a)
-    m = a.match(Obj::PLACE) or return [a[/(?<![А-Яа-я])Минск(?![а-я])/] && 'Минск', nil]
+    m = a.match(Obj::PLACE) or return(bare_town(a) || [a[/(?<![А-Яа-я])Минск(?![а-я])/] && 'Минск', nil])
     t = m[2]
     nx = a[m.end(0)..][/\A\s([А-Я][а-я]+)(?=\s*(?:,|\z))/, 1]
     t = "#{t} #{nx}" if nx && nx !~ /(?:ский|цкий|ской)\z/
@@ -35,7 +47,7 @@ module Geo
     dist = a[/([А-Я][а-я]+(?:ский|цкий|ской))\s+(?:р-н|район)/, 1]
     reg = a =~ /обл/ ? region_of(a) : nil
     unless town
-      ss = a[/([А-Я][а-я]+(?:ский|цкий|ской))\s+с\/с/, 1]
+      ss = a[/([А-Я][а-я]+(?:ский|цкий|ской))\s+(?:с\/с|сс|сельсовет)(?![а-я])/, 1]
       return ss && dist ? ["#{ss} сельский Совет, #{dist} район"] : []
     end
     rest = at ? a[at..] : a
@@ -109,11 +121,13 @@ module Geo
     end
     todo = db.values.select { |l| l['status'] == 'active' && l['geo_try'].to_i < 2 &&
                                   (!l.key?('geo') || (l['geo_v'] != V && (l['geo'].nil? || l['geo'][2] == 'p')) ||
-                                   (l['platform'] == 'konfiskat.by' && l['geo'].nil? && !l['geo_q'] && Obj.kf_name_addr(l['name']))) }
+                                   (l['platform'] == 'konfiskat.by' && l['geo'].nil? && !l['geo_q'] && Obj.kf_name_addr(l['name'])) ||
+                                   ((l['geo'].nil? || l['geo'][2] == 'p') && l['geo_t'] != 1)) }
     todo.each do |l|
       break if asked >= CAP || Time.now > stop
       addr = l['platform'] == 'konfiskat.by' ? Obj.kf_addr(l['name'], Obj.rows_of(Store.details(l['key']))) : l['location']
       l['geo_q'] = addr if l['platform'] == 'konfiskat.by' && addr
+      l['geo_t'] = 1
       qs = queries(addr)
       l['geo_v'] = V
       if qs.empty?

@@ -104,6 +104,7 @@ lots.each do |l|
     l['location'] = a
   end
   l['location'] = 'г. Минск' if l['platform'] == 'konfiskat.by' && l['location'].to_s.strip.empty?
+  %w[location name].each { |k| l[k] = l[k].gsub(/\s+([,;)])/, '\1').gsub(/\(\s+/, '(').gsub(/([,;])(?:\s*[,;])+/, '\1').sub(/\A[\s,;.:]+/, '').gsub(/[ \t]{2,}/, ' ').strip if l[k].is_a?(String) }
   l['region'] = region_of(l['location'])
   if %w[nedvizhimost arenda].include?(l['section']) && !l['area_num'].to_f.positive?
     land = l['sub_ru'].to_s =~ /участ/i || l['name'].to_s =~ /\A\s*земельн\S*\s+участ/i
@@ -232,6 +233,12 @@ BARE_NAME = /\A(?:квартира|жилой дом|дом|жилое поме�
     tn = l['region'] == 'г. Минск' ? 'Минск' : (m = l['location'].to_s.match(Obj::PLACE)) ? m[2] : nil
     n = [n, (a.positive? ? "#{a.round(1).to_s.sub(/\.0\z/, '').tr('.', ',')} м²" : nil), tn].compact.join(', ')
   end
+  n = n.sub(/\AЛот\s*№?\s*\d+\s*[.:,)–—-]?\s*/i, '') if n =~ /\AЛот\s*№?\s*\d+\s*[.:,)–—-]?\s*[[:alpha:]].{15}/i
+  lt = n.scan(/[А-ЯЁA-Zа-яёa-z]/)
+  if lt.size > 10 && lt.count { |c| c =~ /[А-ЯЁA-Z]/ } > lt.size * 0.8
+    n = n.split(/(\s+)/).map { |w| w =~ /\d/ || w !~ /[А-ЯЁ]/ ? w : w.downcase }.join
+    n = n[0].upcase + n[1..-1].to_s
+  end
   l['name'] = n unless n.empty?
 end
 active.group_by { |l| l['name'].to_s.downcase }.each_value { |v| v.each { |l| l['dn'] = 1 } if v.size > 1 }
@@ -332,7 +339,25 @@ shown = (active + arch).map { |l| [l['key'], l['id']] }.to_h
 sim = Similar.run(lots, shown, ADM['sales'], ->(k) { Store.details(k) })
 puts "похожие торги: у #{sim.count { |_, v| v['c'] }} лотов, история объекта: у #{sim.count { |_, v| v['h'] }}"
 
-Pages.prepare(active: active, arch: arch, details: ->(k) { Store.details(k) }, now: now)
+ENT = { 'quot' => '"', 'amp' => '&', 'lt' => '<', 'gt' => '>', 'apos' => "'", 'nbsp' => ' ', 'thinsp' => ' ', 'ensp' => ' ', 'emsp' => ' ',
+        'laquo' => '«', 'raquo' => '»', 'mdash' => '—', 'ndash' => '–', 'hellip' => '…', 'deg' => '°', 'sup2' => '²', 'sup3' => '³',
+        'times' => '×', 'minus' => '−', 'plusmn' => '±', 'auml' => 'ä', 'ouml' => 'ö', 'uuml' => 'ü', 'Auml' => 'Ä', 'Ouml' => 'Ö',
+        'Uuml' => 'Ü', 'szlig' => 'ß', 'eacute' => 'é', 'bdquo' => '„', 'ldquo' => '“', 'rdquo' => '”', 'lsquo' => '‘', 'rsquo' => '’', 'num' => '№' }.freeze
+def unent(s)
+  return s unless s.is_a?(String) && s.include?('&')
+  6.times do
+    t = s.gsub(/&(#\d{2,6}|#x\h{2,5}|[A-Za-z]{2,8}\d?);/) do
+      c = $1
+      c.start_with?('#x') ? (c[2..-1].hex.chr(Encoding::UTF_8) rescue $&) : c.start_with?('#') ? (c[1..-1].to_i.chr(Encoding::UTF_8) rescue $&) : (ENT[c] || $&)
+    end
+    break if t == s
+    s = t
+  end
+  s
+end
+DETAILS = ->(k) { Store.details(k).each { |sec| (sec['rows'] || []).each { |r| r[1] = unent(r[1]); r[1] = r[1].gsub(/,(?:\s*,)+/, ',') if r[1].is_a?(String) } } }
+
+Pages.prepare(active: active, arch: arch, details: DETAILS, now: now)
 order = active.group_by { |l| l['section'] }.values.flatten + arch
 packs = 0
 vat_stat = Hash.new(0)
@@ -340,7 +365,7 @@ order.group_by { |l| Zlib.crc32(l['id']) % PACKS }.each do |pk, chunk|
   det = {}
   chunk.each do |l|
     l['pk'] = pk
-    secs = Store.details(l['key'])
+    secs = DETAILS.(l['key'])
     if (d = descr[l['key']])
       row = secs.flat_map { |s| s['rows'] }.find { |k, _| k.to_s =~ /\AОписание/i }
       if row
@@ -450,7 +475,7 @@ SEO_DEF = { 'seo_title' => 'Аукционы имущества в Белару�
 seo = SEO_DEF.map { |k, v| t = ((CFG['texts'] || {})[k]).to_s.strip; [k, (t.empty? ? v : t).gsub('&', '&amp;').gsub('"', '&quot;').gsub('<', '&lt;')] }.to_h
 tpl = tpl.gsub('__TITLE__', seo['seo_title']).gsub('__DESC__', seo['seo_desc']).gsub('__SHORT__', seo['seo_short']).gsub('__BRAND__', seo['seo_brand'])
 tpl_head = tpl[0...tpl.index('<script>')]
-i_js = tpl.index("<script>\nconst DATA = window.MT_DATA;") or abort 'шаблон: нет начала приложения'
+i_js = tpl.index("<script>\nconst DATA_ALL = window.MT_DATA;") or abort 'шаблон: нет начала приложения'
 body_tpl = tpl[(tpl.index('</style>') + 8)...i_js]
 FileUtils.mkdir_p(File.join(OUT, 'assets'))
 File.write(File.join(OUT, 'assets', 'site.css'), tpl[%r{<style>(.*?)</style>}m, 1] + Pages::CSS)
@@ -484,7 +509,7 @@ File.write(File.join(OUT, 'app.html'), SHELL.())
 File.write(File.join(OUT, 'arch.js'), "__arch(#{JSON.generate(arch1.map(&slim))});")
 unless ENV['SEO_PAGES'] == '0'
   t0 = Time.now
-  r = Pages.run(out: OUT, active: active, arch: arch, details: ->(k) { Store.details(k) }, tree: Cats.tree, now: now,
+  r = Pages.run(out: OUT, active: active, arch: arch, details: DETAILS, tree: Cats.tree, now: now,
                 shell: SHELL, live: ENV['SEO_LIVE'] == '1')
   puts "SEO-страницы: #{r[:pages]} (открыто поиску #{r[:indexed]}), лотов #{r[:lots]}, срезов #{r[:slices]}, #{(Time.now - t0).round} с"
 end
