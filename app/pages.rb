@@ -445,7 +445,7 @@ module Pages
     prod['offers'] = offer if offer['price']
     prod['image'] = "#{SITE}/ph/#{l['photo']}.jpg" if l['photo']
     prod['brand'] = { '@type' => 'Brand', 'name' => l['brand'] } if l['brand'] && l['brand'] != 'Другие'
-    open = !arch || l['closed'].to_i > @now - ARCH_DAYS * 86_400
+    open = !arch || (l['closed'].to_i > @now - ARCH_DAYS * 86_400 && (ENV['SEO_ARCH'] == 'all' || %w[sold single failed].include?(st)))
     write(lot_path(l), title, desc, body, [ld_b, prod], open, "/lot/#{l['id']}")
   end
 

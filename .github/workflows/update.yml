@@ -62,6 +62,7 @@ jobs:
       url: ${{ steps.deploy.outputs.page_url }}
     env:
       TZ: Europe/Minsk
+      SEO_LIVE: '1'   # 23.10: сайт открыт поисковикам (архив — пока только лоты с итогом, SEO_ARCH)
       COLLECT: ${{ needs.gate.outputs.collect }}
       RESULTS: ${{ needs.gate.outputs.results }}
       RUN_ID: ${{ needs.gate.outputs.run_id }}

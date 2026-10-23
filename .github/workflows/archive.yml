@@ -27,6 +27,7 @@ jobs:
       url: ${{ steps.deploy.outputs.page_url }}
     env:
       TZ: Europe/Minsk
+      SEO_LIVE: '1'
       YEAR_ARCH: '1'
       BACK_MIN: ${{ inputs.minutes || 270 }}
       RUN_KIND: year
