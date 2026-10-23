@@ -211,10 +211,15 @@ module Pages
     HTML
   end
 
+  def price_from(ls)
+    ls.reject { |l| l['sub'].to_s.start_with?('arenda') || l['rent'] || l['name'].to_s =~ /аренд/i }
+      .map { |l| l['price'].to_f }.select(&:positive?).min
+  end
+
   def facts(act, done)
     s = []
     if act.any?
-      mn = act.map { |l| l['price'].to_f }.select(&:positive?).min
+      mn = price_from(act)
       nx = act.map { |l| l['torg'] || l['req_to'] }.compact.select { |t| t > @now }.min
       s << "Сейчас на торгах #{nf(act.size)} #{plural(act.size, 'лот', 'лота', 'лотов')}" + (mn ? ", цены от #{nf(mn)} BYN" : '') + '.'
       s << "Ближайшие торги — #{dt(nx)}." if nx
@@ -308,6 +313,9 @@ module Pages
     rows_secs = @details.call(l['key'])
     arch = l['status'] == 'archive'
     sh = @short[l['id']]
+    tn = town(l)
+    h1 = tn.to_s.empty? || sh.include?(tn.to_s) ? sh : "#{sh}, #{tn}"
+    full = clean(l['name']).then { |x| x.size > 300 ? x[0, 300].sub(/\s+\S*\z/, '') + '…' : x }
     r = l['result']
     st = r && RES[r['st']] ? r['st'] : nil
     price = l['price'].to_f.positive? ? "#{nf(l['price'])} BYN" : nil
@@ -346,7 +354,7 @@ module Pages
     body = <<~HTML
       <div class="wrap">#{cr}
       <div class="lothead"><div class="tags"><span class="tag">#{h(@subname[l['sub']])}</span><span class="tag g">#{h(l['platform'])}</span><span class="tag g mono">№ #{h(l['art'])}</span>#{arch ? '<span class="tag a">Архив</span>' : ''}</div>
-        <h1>#{h(clean(l['name']).then { |x| x.size > 200 ? x[0, 200].sub(/\s+\S*\z/, '') + '…' : x })}</h1><div class="addr">#{h(l['location'])}</div></div>
+        <h1>#{h(h1)}</h1>#{full.size > sh.size ? %(<p class="full">#{h(full)}</p>) : ''}<div class="addr">#{h(l['location'])}</div></div>
       <div class="lotpage"><div class="gal">#{img}</div><div class="rcol">
         <aside class="panel buy"><div class="lbl">Стартовая цена</div><div class="bigprice">#{price || 'Не указана'}</div>
           <dl class="facts"><dt>Приём заявок</dt><dd>#{arch ? "завершён #{dt(l['closed'])}" : "до <b>#{dtm(l['req_to'])}</b>"}</dd>
@@ -453,7 +461,7 @@ module Pages
       act, done = split.(tl)
       subs = t[:subs].map { |s| [s['n'], "/#{t[:k]}/#{s['k']}/", act.count { |l| l['sub'] == "#{t[:k]}/#{s['k']}" }] }
       big = subs.sort_by { |x| -x[2] }.first(3).map { |x| x[0].downcase }.join(', ')
-      mn = act.map { |l| l['price'].to_f }.select(&:positive?).min
+      mn = price_from(act)
       list_page("/#{t[:k]}/", title_fit("#{t[:n]} с торгов в Беларуси | МониТорг"), "#{t[:n]} с торгов",
                 "#{act.any? ? "#{lots_n(act.size)} на торгах: #{big}.#{mn ? " Цены от #{nf(mn)} BYN." : ''}" : 'Сейчас активных лотов нет.'} Итоги прошлых торгов, все площадки Беларуси.",
                 [[t[:n], nil]], act, done, [['Подразделы', subs]], "/#/c/#{t[:k]}", true)
@@ -461,7 +469,7 @@ module Pages
         sp = "#{t[:k]}/#{s['k']}"
         sl = tl.select { |l| l['sub'] == sp }
         a2, d2 = split.(sl)
-        mn = a2.map { |l| l['price'].to_f }.select(&:positive?).min
+        mn = price_from(a2)
         regs = plans.select { |x| x[0] == :reg && x[1] == sp }.map { |x| [x[2], "/#{sp}/#{x[3]}/", x[5].count { |l| l['status'] == 'active' }] }
         cits = plans.select { |x| x[0] == :city && x[1] == sp }.map { |x| [x[2], "/#{sp}/#{x[3]}/", x[5].count { |l| l['status'] == 'active' }] }
         brs = plans.select { |x| x[0] == :brand && x[1] == sp }.map { |x| [x[2], "/#{sp}/#{x[3]}/", x[5].count { |l| l['status'] == 'active' }] }
@@ -478,7 +486,7 @@ module Pages
       t = @tops.find { |x| sp.start_with?("#{x[:k]}/") }
       sn = sp.start_with?('arenda/') ? "Право аренды: #{@subname[sp].downcase}" : @subname[sp]
       act, done = split.(ls)
-      mn = act.map { |l| l['price'].to_f }.select(&:positive?).min
+      mn = price_from(act)
       nx = act.map { |l| l['torg'] || l['req_to'] }.compact.select { |x| x > now }.min
       path = "/#{sp}/#{sl}/"
       sibs = plans.select { |x| x[0] == kind && x[1] == sp && x[3] != sl }.map { |x| [x[2], "/#{sp}/#{x[3]}/", x[5].count { |l| l['status'] == 'active' }] }

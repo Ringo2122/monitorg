@@ -20,6 +20,7 @@ require_relative 'chance'
 require_relative 'brands'
 require_relative 'mgcn'
 require_relative 'pages'
+require_relative 'indexnow'
 require 'cgi'
 
 OUT  = ENV['OUT'] || File.join(Store::ROOT, '_site')
@@ -549,7 +550,8 @@ File.write(File.join(TMP, 'sales.json'), JSON.generate(sales))
 
 FileUtils.rm_f(File.join(TMP, 'stats_file.json'))
 FileUtils.mkdir_p(File.join(OUT, 'st'))
-File.write(File.join(OUT, 'robots.txt'), "User-agent: *\nDisallow: /st/\n")
+File.write(File.join(OUT, 'robots.txt'), "User-agent: *\nDisallow: /st/\n\nSitemap: https://monitorg.by/sitemap.xml\n")
+File.write(File.join(OUT, "#{IndexNow::KEY}.txt"), IndexNow::KEY)
 begin
   File.binwrite(File.join(OUT, 'st', "#{ST_PREV['name']}.bin"), ST_PREV['bytes']) if ST_PREV
   all_sales = (ADM['sales'] + sales).each_with_object({}) { |x, h| h["#{x['key']}|#{x['at'].to_i}"] = x }.values
