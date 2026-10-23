@@ -31,10 +31,15 @@ module Src
 
   CURL = %w[curl -sS -L --proto =http,https --proto-redir =http,https --max-filesize 20000000].freeze
 
+  KF_HOSTS = %r{\Ahttps?://(www\.)?(torgi)?konfiskat\.by(/|:|\z)}i
+  def curl_for(url)
+    ENV['KF_PROXY'].to_s.empty? || url.to_s !~ KF_HOSTS ? CURL : [*CURL, '--socks5-hostname', ENV['KF_PROXY']]
+  end
+
   def get(url, min: 1500, tries: 2)
     return nil unless url.to_s =~ %r{\Ahttps?://}i
     tries.times do |i|
-      out = IO.popen([*CURL, '-m', '40', '-A', UA, url], err: File::NULL, &:read)
+      out = IO.popen([*curl_for(url), '-m', '40', '-A', UA, url], err: File::NULL, &:read)
       out = out.to_s.force_encoding('UTF-8')
       return out if out.size >= min
       sleep 2 if i < tries - 1
@@ -520,7 +525,7 @@ module Src
     NOTICE_LOCK.synchronize do
       return NOTICES[url] if NOTICES.key?(url)
       tmp = File.join(Dir.tmpdir, "kf-notice-#{url.hash.abs}.pdf")
-      system(*CURL, '-m', '60', '-A', UA, '-o', tmp, url, out: File::NULL, err: File::NULL) if url.to_s =~ %r{\Ahttps?://}i
+      system(*curl_for(url), '-m', '60', '-A', UA, '-o', tmp, url, out: File::NULL, err: File::NULL) if url.to_s =~ %r{\Ahttps?://}i
       t = (File.exist?(tmp) ? PdfText.text(tmp) : '').gsub(/\s+/, ' ') rescue ''
       File.delete(tmp) if File.exist?(tmp)
       n = {}

@@ -80,6 +80,13 @@ jobs:
       - name: ImageMagick для фото
         run: command -v convert || (sudo apt-get update -qq && sudo apt-get install -y -qq imagemagick)
 
+      - name: Туннель к konfiskat.by через hoster.by
+        if: env.COLLECT == 'true' || env.RESULTS == 'true'
+        env:
+          HOSTER_SSH_KEY: ${{ secrets.HOSTER_SSH_KEY }}
+          HOSTER_KNOWN_HOSTS: ${{ secrets.HOSTER_KNOWN_HOSTS }}
+        run: bash tools/kf_tunnel.sh
+
       - name: Обход площадок
         if: env.COLLECT == 'true' || env.RESULTS == 'true'
         shell: bash
