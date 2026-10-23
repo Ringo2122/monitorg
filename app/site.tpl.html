@@ -1368,8 +1368,7 @@ const PLACES = window.MT_PLACES;        // города и районы внут
 const MT_META = (document.querySelector('meta[name="mt-route"]') || {}).content || '';
 const MT_PATH0 = location.pathname;
 // заголовок готовой страницы (с городом, «торги в Беларуси», датой торгов) — её же оставляем, пока человек на ней
-const MT_T0 = MT_META ? document.title : '', MT_Q0 = location.search;
-// маршрут → адрес. Лот — по его «u» (имя-номер, как у SEO-страницы); раздел каталога — /раздел/подраздел/ + фильтры
+const MT_T0 = MT_META ? document.title : '', MT_Q0 = location.search;// маршрут → адрес. Лот — по его «u» (имя-номер, как у SEO-страницы); раздел каталога — /раздел/подраздел/ + фильтры
 function toPath(r){
   r = String(r || '/').replace(/^#/, '') || '/';
   const [p, q] = r.split('?'), qs = q ? '?' + q : '';
@@ -1451,7 +1450,7 @@ const SECTIONS = [
 /* текст из админки, если там заполнен; иначе — текст по умолчанию */
 const TX = (k, d) => { const v = (CFG.texts||{})[k]; return v && String(v).trim() ? String(v) : d; };
 // название сайта во вкладке и окончание заголовков страниц («Все лоты - МониТорг») — из админки (тексты seo_*)
-const SEO_TITLE = TX('seo_title', 'МониТорг - торги по имуществу должников Беларуси'), TSUF = ' - ' + TX('seo_brand', 'МониТорг');
+const SEO_TITLE = TX('seo_title', 'Аукционы имущества в Беларуси: все торги в одном каталоге | МониТорг'), TSUF = ' - ' + TX('seo_brand', 'МониТорг');
 const numv = v => v===''||v==null||isNaN(+v) ? null : +v;
 const $ = s => document.querySelector(s);
 const esc = s => String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));

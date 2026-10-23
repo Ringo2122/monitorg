@@ -443,7 +443,7 @@ archn = arch.group_by { |l| l['section'] }.map { |k, v| [k, v.size] }.to_h.merge
 archn['tree'] = arch.each_with_object(Hash.new(0)) { |l, h| next unless l['sub']; h[l['sub']] += 1; h[l['sub'].split('/').first] += 1 }
 slim = ->(l) { KEEP.each_with_object({}) { |k, h| h[k] = l[k] unless l[k].nil? }.tap { |h| h['np'] = l['pics'].size if (l['pics'] || []).size > 1 } }
 tpl = File.read(File.join(__dir__, 'site.tpl.html'), encoding: 'UTF-8')
-SEO_DEF = { 'seo_title' => 'МониТорг - торги по имуществу должников Беларуси', 'seo_brand' => 'МониТорг',
+SEO_DEF = { 'seo_title' => 'Аукционы имущества в Беларуси: все торги в одном каталоге | МониТорг', 'seo_brand' => 'МониТорг',
             'seo_desc' => 'Все торги по имуществу Беларуси в одном каталоге: недвижимость, авто, спецтехника, оборудование и аренда ' \
                           'с 18 площадок. Фильтры, история цен, итоги торгов.',
             'seo_short' => 'Агрегатор торгов по имуществу со всех площадок Беларуси' }.freeze
