@@ -897,6 +897,15 @@ module Src
     { 'k' => 'raw', 'raw' => t[/Коэффициент к базовой арендной ставке[^.]*?\d+(?:[.,]\d+)?/i] }
   end
 
+  def gs_fee_pct(fee)
+    fee.to_s[/(\d+(?:[.,]\d+)?)\s*%\s*от\s+(?:конечной\s+)?цены\s+(?:продажи|реализации)/i, 1]&.tr(',', '.')&.to_f
+  end
+
+  def gs_fee_abs(fee)
+    m = fee.to_s.match(/(до\s+)?(\d{1,3}(?:[ \u00a0]\d{3})+|\d+)([.,]\d{1,2})?\s*(?:бел\.?\s*р|руб)/i) or return {}
+    { 'fee_abs' => num(m[2] + m[3].to_s), 'fee_upto' => m[1] ? true : nil }.compact
+  end
+
   def gs_detail(html)
     secs = gs_fields(html)
     f = {}
@@ -938,8 +947,8 @@ module Src
       'price_byn' => price, 'area_num' => area, 'photo_url' => pics.first, 'photos' => pics, 'status' => hist['Состояние'],
       'off' => find.(/\AВид продажи/).to_s =~ /Очные/ ? true : nil, 'rent' => gs_rent(desc, area, loc),
       'terms' => { 'deposit' => num(find.(/\AРазмер задатка/)), 'step_pct' => pct == '%' ? num(step) : nil,
-                   'step_abs' => pct == '%' ? nil : num(step), 'fee_pct' => fee[/(\d+(?:[.,]\d+)?)\s*%\s*от цены продажи/, 1]&.tr(',', '.')&.to_f,
-                   'vat' => find.(/\AЕсть ли НДС/) == 'Да' ? 'Начальная цена — с НДС' : nil, 'v' => 2 }
+                   'step_abs' => pct == '%' ? nil : num(step), 'fee_pct' => gs_fee_pct(fee),
+                   'vat' => find.(/\AЕсть ли НДС/) == 'Да' ? 'Начальная цена — с НДС' : nil, 'v' => 3 }.merge(gs_fee_abs(fee))
                  .reject { |_, v| v.nil? || v == 0.0 } }
   end
 

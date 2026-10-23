@@ -32,7 +32,7 @@ PLAT_OFF = (CFG['platforms'] || {}).select { |_, v| v == false }.keys
 MINP = MIN_PRICE.merge((CFG['min_price'] || {}).map { |k, v| [k, v.to_f] }.to_h)
 TERMS_CAP = (ENV['TERMS_CAP'] || 800).to_i
 TERMS_V = { 'beltorgi.by' => 2, 'torgi.gov.by' => 3, 'etpvit.by' => 4, 'expert-torgi.by' => 3, 'realtorgi.by' => 3,
-            'iintorgi.by' => 3, 'lotsale.by' => 3 }.freeze
+            'iintorgi.by' => 3, 'lotsale.by' => 3, 'gostorg.by' => 3 }.freeze
 EA_TORG_CAP = (ENV['EA_TORG_CAP'] || 700).to_i
 RES_CAP = (ENV['RES_CAP'] || 300).to_i
 RESULTS_ONLY = !ENV['RESULTS_ONLY'].to_s.empty?
@@ -232,6 +232,9 @@ end
                   upd['terms'] = Src.bt_terms(Store.details(c['key']))
                 elsif c['platform'] == 'torgi.gov.by'
                   upd['terms'] = (old['terms'] || {}).merge(c['d']['terms'])
+                elsif c['platform'] == 'gostorg.by'
+                  fee = Store.details(c['key']).flat_map { |s| Array(s['rows']) }.find { |k, _| k == 'Затраты и вознаграждение' }&.last
+                  upd['terms'] = (old['terms'] || {}).merge('fee_pct' => Src.gs_fee_pct(fee), 'v' => 3).merge(Src.gs_fee_abs(fee)).reject { |_, v| v.nil? }
                 elsif (d2 = fetch_detail(c))
                   upd['terms'] = d2['terms'] || {}
                   upd['torg'] = d2['torg'] if c['platform'] == 'etpvit.by' && d2['torg']
