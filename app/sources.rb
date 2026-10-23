@@ -33,7 +33,7 @@ module Src
 
   KF_HOSTS = %r{\Ahttps?://(www\.)?(torgi)?konfiskat\.by(/|:|\z)}i
   def curl_for(url)
-    ENV['KF_PROXY'].to_s.empty? || url.to_s !~ KF_HOSTS ? CURL : [*CURL, '--socks5-hostname', ENV['KF_PROXY']]
+    ENV['KF_CURL'].to_s.empty? || url.to_s !~ KF_HOSTS ? CURL : ['bash', ENV['KF_CURL'], *CURL.drop(1)]
   end
 
   def get(url, min: 1500, tries: 2)
