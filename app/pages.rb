@@ -4,6 +4,7 @@ require 'cgi'
 require 'fileutils'
 require 'digest'
 require_relative 'brands'
+require_relative 'apppages'
 
 module Pages
   module_function
@@ -37,7 +38,7 @@ module Pages
   }.freeze
   PLAT_NAME = { 'e-auction.by' => 'БелЮрОбеспечение', 'ipmtorgi.by' => 'ИПМ-Торги', 'beltorgi.by' => 'Белреализация',
                 'konfiskat.by' => 'Торговый дом «Восточный»', 'belauction.by' => 'БелАукцион', 'minskestate.by' => 'Минск-Недвижимость',
-                'mgcn.by' => 'МГЦН', 'auction24.by' => 'Госторги', 'butb.by' => 'БУТБ', 'lotsale.by' => 'LotSale', 'gostorg.by' => 'GOSTORG',
+                'mgcn.by' => 'МГЦН', 'auction24.by' => 'Auction24', 'butb.by' => 'БУТБ', 'lotsale.by' => 'LotSale', 'gostorg.by' => 'GOSTORG',
                 'bankrot-torg.by' => 'БелБанкротАукцион', 'specrealization.by' => 'СпецРеализация',
                 'torgi.gov.by' => 'Единая система электронных торгов', 'etpvit.by' => 'ETPVIT', 'expert-torgi.by' => 'EXPERT ТОРГИ',
                 'realtorgi.by' => 'Реалторги', 'iintorgi.by' => 'ИИН Торги' }.freeze
@@ -462,7 +463,7 @@ module Pages
     @lp
   end
 
-  def run(out:, active:, arch:, details:, tree:, now:, shell:, live: false)
+  def run(out:, active:, arch:, details:, tree:, now:, shell:, live: false, cfg: {})
     @shell = shell
     @out = out
     @now = now
@@ -594,6 +595,8 @@ module Pages
     dupd = @meta.values.group_by { |m| m[1] }.select { |_, v| v.size > 1 }.keys.to_h { |t| [t, true] }
     @meta.each { |id, m| m[1] = "Лот № #{art[id]}. #{m[1]}" if dupd[m[1]] }
     all.each { |l| lot_page(l) }
+
+    app_pages(cfg)
 
     lots_sm, other = @sitemap.partition { |p, _| p.start_with?('/lot/') }
     files = { 'sitemap-pages.xml' => other }

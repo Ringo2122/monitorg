@@ -19,6 +19,12 @@ RewriteRule ^ https://%1%{REQUEST_URI} [L,R=301]
 # /ploshchadki/ — своей страницы нет (есть /ploshchadki/<площадка>/): в каталог, там фильтр «Площадка» (22.10)
 RewriteRule ^ploshchadki/?$ https://%{HTTP_HOST}/catalog [R=301,L]
 
+# 23.10: разделы приложения с готовым текстом для поиска (app/apppages.rb) — файл _p/<адрес>.html по обычному адресу;
+# нет файла — как раньше, оболочка ниже. /calc — на калькулятор торгов (у каждого калькулятора своя страница)
+RewriteRule ^calc/?$ https://%{HTTP_HOST}/calc/torgi [R=301,L]
+RewriteCond %{DOCUMENT_ROOT}/_p/$1.html -f
+RewriteRule ^(about|help|privacy|cookies|news|news/[a-z0-9-]+|calc/torgi|calc/bav)/?$ /_p/$1.html [L]
+
 # 22.10: только адреса приложения; остальное — 404 с той же оболочкой (приложение покажет «Страница не найдена»)
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d

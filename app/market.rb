@@ -8,7 +8,7 @@ Encoding.default_internal = Encoding::UTF_8
 
 UA    = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/140.0 Safari/537.36'
 DIR   = File.dirname(File.expand_path(__FILE__))
-MIN_N = 3
+MIN_N = 5
 CAT   = { 'avto' => '2010' }
 
 def years_param(yr)

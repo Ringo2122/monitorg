@@ -119,7 +119,7 @@ lots.each do |l|
   l.delete('prices') unless (l['prices'] || []).size > 1
   if (m = l['market'])
     r = m['median'].to_f.positive? ? l['price'].to_f / m['median'] : 0
-    l.delete('market') unless r >= 0.30 && r <= 3.0 && m['n'].to_i >= 3
+    l.delete('market') unless r >= 0.30 && r <= 3.0 && m['n'].to_i >= 5
   end
 end
 Chance.apply(lots, now)
@@ -510,7 +510,7 @@ File.write(File.join(OUT, 'arch.js'), "__arch(#{JSON.generate(arch1.map(&slim))}
 unless ENV['SEO_PAGES'] == '0'
   t0 = Time.now
   r = Pages.run(out: OUT, active: active, arch: arch, details: DETAILS, tree: Cats.tree, now: now,
-                shell: SHELL, live: ENV['SEO_LIVE'] == '1')
+                shell: SHELL, live: ENV['SEO_LIVE'] == '1', cfg: CFG)
   puts "SEO-страницы: #{r[:pages]} (открыто поиску #{r[:indexed]}), лотов #{r[:lots]}, срезов #{r[:slices]}, #{(Time.now - t0).round} с"
 end
 SRCH_ROWS = /\A(?:Адрес \(местонахождение\)|Местоположение имущества|Местонахождение имущества|Местонахождение|Местоположение|Марка|Модель|Марка \(модель\)|Идентификационный номер|Регистрационный номер|Кадастровый номер|Инвентарный номер.*|Инв\. номер|Год выпуска|Год)\z/
@@ -576,7 +576,7 @@ File.write(File.join(TMP, 'sales.json'), JSON.generate(sales))
 
 FileUtils.rm_f(File.join(TMP, 'stats_file.json'))
 FileUtils.mkdir_p(File.join(OUT, 'st'))
-File.write(File.join(OUT, 'robots.txt'), "User-agent: *\nDisallow: /st/\n\nSitemap: https://monitorg.by/sitemap.xml\n")
+File.write(File.join(OUT, 'robots.txt'), "User-agent: *\nDisallow: /st/\nDisallow: /_p/\n\nSitemap: https://monitorg.by/sitemap.xml\n")
 File.write(File.join(OUT, "#{IndexNow::KEY}.txt"), IndexNow::KEY)
 begin
   File.binwrite(File.join(OUT, 'st', "#{ST_PREV['name']}.bin"), ST_PREV['bytes']) if ST_PREV

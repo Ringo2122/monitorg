@@ -12,9 +12,11 @@ module IndexNow
 
   def self.urls(lines)
     lines.map { |s| s.strip.sub(/\Adeleting\s+/, '') }
+         .map { |p| p =~ %r{\A_p/(.+)\.html\z} ? "#{$1}/index.html" : p }
          .select { |p| p == 'index.html' || p.end_with?('/index.html') }
          .reject { |p| p =~ %r{\A(_test|admin|st)/} }
-         .map { |p| "#{SITE}/#{p.sub(/index\.html\z/, '')}" }.uniq
+         .map { |p| "#{SITE}/#{p.sub(/index\.html\z/, '')}" }
+         .map { |u| u =~ %r{/(about|help|privacy|cookies|news|news/[^/]+|calc/(torgi|bav))/\z} ? u.chomp('/') : u }.uniq
   end
 
   def self.send_all(urls)
