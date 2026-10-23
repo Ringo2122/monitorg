@@ -1613,8 +1613,9 @@ const LATW = {а:'a',в:'b',е:'e',к:'k',м:'m',н:'h',о:'o',р:'p',с:'c',т:
 const PRIM = new WeakMap();
 // + город или район из фильтра («Слуцк и район» — деревня в Слуцком р-не находится по «Слуцк»)
 // + то же без дефисов между буквами: «машиноместо» находит «машино-место»
+// у продавца «торговый дом» — одним словом: «дом Минск» не находит машины РУП «Торговый дом «Восточный» (23.10)
 const primOf = l => { let p = PRIM.get(l); if(!p){ const nm = norm(l.name);
-  let h = nm+' '+norm(l.location)+' '+norm(l.art)+' '+norm(l.debtor)+(l.city && l.city !== 'Остальная область' ? ' '+norm(l.city) : '');
+  let h = nm+' '+norm(l.location)+' '+norm(l.art)+' '+norm(l.debtor).replace(/(торгов[а-я]*)\s+дом/g, '$1дом')+(l.city && l.city !== 'Остальная область' ? ' '+norm(l.city) : '');
   if(/[а-я]-[а-я]/.test(h)) h += ' ' + h.replace(/([а-я])-(?=[а-я])/g, '$1');
   p = [nm, h]; PRIM.set(l, p); } return p; };
 const descOf = l => (SRCH && SRCH[l.id]) || SRCH2[l.id] || '';
