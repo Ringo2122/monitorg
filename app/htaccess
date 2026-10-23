@@ -14,7 +14,7 @@ RewriteRule ^ https://%1%{REQUEST_URI} [L,R=301]
 RewriteCond %{HTTP_HOST} ^www\.(.+)$ [NC]
 RewriteRule ^ https://%1%{REQUEST_URI} [L,R=301]
 
-# приложение (22.10, SEO этап 3): адрес без своего файла (/catalog, /me, /calc/torgi, /lot/<номер>/) — оболочка /index.html,
+# приложение (22.10, SEO этап 3): адрес без своего файла (/catalog, /me, /calc/torgi, /lot/<номер>/) — оболочка /app.html (23.10: index.html — главная с готовым текстом),
 # приложение само откроет нужную страницу. Файлы сайта и служебные папки — как есть (нет файла — честная 404)
 # /ploshchadki/ — своей страницы нет (есть /ploshchadki/<площадка>/): в каталог, там фильтр «Площадка» (22.10)
 RewriteRule ^ploshchadki/?$ https://%{HTTP_HOST}/catalog [R=301,L]
@@ -24,8 +24,8 @@ RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteCond %{REQUEST_URI} ^/(?:catalog|calc|rent|about|privacy|cookies|help|login|me|news)(?:/|$) [OR]
 RewriteCond %{REQUEST_URI} ^/(?:c|s|lot)/
-RewriteRule ^ /index.html [L]
-ErrorDocument 404 /index.html
+RewriteRule ^ /app.html [L]
+ErrorDocument 404 /app.html
 
 # служебное — не отдаём
 RedirectMatch 404 /\.(?!well-known)

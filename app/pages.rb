@@ -173,7 +173,10 @@ module Pages
 
   CSS = ".pager{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0}.pager a,.pager b{padding:6px 12px;border:1px solid var(--hair);border-radius:8px}" \
         ".pager b{background:var(--brand);color:#fff;border-color:var(--brand)}.seo-links ul{display:flex;flex-wrap:wrap;gap:8px 18px;padding:0;list-style:none}" \
-        ".seo-links small{color:var(--ink-3)}.panel.res{padding:14px 16px;margin-top:15px}.panel.res .sub{color:var(--ink-2);font-size:13px;margin-top:4px}\n"
+        ".seo-links small{color:var(--ink-3)}.panel.res{padding:14px 16px;margin-top:15px}.panel.res .sub{color:var(--ink-2);font-size:13px;margin-top:4px}" \
+        ".home-secs{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px}.home-sec h3{font-size:17px;margin:0 0 6px}" \
+        ".home-sec ul{list-style:none;padding:0;margin:0;font-size:14px;line-height:1.7}.home-sec small{color:var(--ink-3)}" \
+        ".home-about p{max-width:80ch;line-height:1.55;color:var(--ink-2)}\n"
 
   def crumbs(parts)
     li = [['Главная', '/']] + parts
@@ -272,6 +275,61 @@ module Pages
       HTML
       write(p, pg > 1 ? "#{title} — страница #{pg}" : title, desc, body, [ld_b, ld_list], index, app_link.sub(%r{\A/#}, ''))
     end
+  end
+
+  HOME = {
+    title: 'Аукционы имущества в Беларуси: все торги в одном каталоге | МониТорг',
+    h1: 'Аукционы и торги по имуществу в Беларуси',
+    lede: 'МониТорг собирает лоты с %<plats>d площадок Беларуси в одном каталоге: недвижимость, автомобили, спецтехника, ' \
+          'оборудование и право аренды. Сейчас на аукционах %<act>s.',
+    desc: 'Аукционы и торги имуществом в Беларуси в одном каталоге: более %<about>s лотов с %<plats>d площадок. ' \
+          'Недвижимость, авто, спецтехника, оборудование, аренда. Итоги аукционов и цены.',
+    about: [
+      'На аукционах продаётся разное имущество: арестованное имущество должников, имущество предприятий в банкротстве, конфискат, ' \
+      'государственная и коммунальная собственность. Лоты обновляются несколько раз в день прямо с сайтов площадок.',
+      'У каждого лота есть начальная цена в рублях и долларах, сроки приёма заявок и проведения аукциона, задаток и сборы площадки, ' \
+      'место на карте. По итогам прошлых аукционов видно, за сколько ушли похожие лоты. Так проще оценить реальную цену до подачи заявки.',
+      'Участвовать можно самостоятельно, по ссылке на площадку, или с нашей помощью: проверим лот и документы, поможем подать заявку ' \
+      'и подготовиться к аукциону.'
+    ]
+  }.freeze
+
+  def home_page(active, all, plans)
+    plats = active.map { |l| l['platform'] }.uniq.size
+    lede = format(HOME[:lede], plats: plats, act: lots_n(active.size))
+    secs = @tops.map do |t|
+      tl = active.select { |l| l['sub'].to_s.start_with?("#{t[:k]}/") }
+      subs = t[:subs].map { |x| [x['n'], "/#{t[:k]}/#{x['k']}/", tl.count { |l| l['sub'] == "#{t[:k]}/#{x['k']}" }] }.select { |x| x[2].positive? }
+      %(<div class="home-sec"><h3><a href="/#{t[:k]}/">#{h(t[:n])}</a> <small>#{nf(tl.size)}</small></h3><ul>) +
+        subs.sort_by { |x| -x[2] }.map { |n, u, c| %(<li><a href="#{u}">#{h(n)}</a> <small>#{nf(c)}</small></li>) }.join + '</ul></div>'
+    end.join
+    pop = plans.select { |x| x[6] }.map do |kind, sp, name, sl, inn, ls, _|
+      sn = sp.start_with?('arenda/') ? "Право аренды: #{@subname[sp].downcase}" : @subname[sp]
+      [kind == :brand ? "#{sn}: #{name}" : "#{sn} #{inn}", "/#{sp}/#{sl}/", ls.count { |l| l['status'] == 'active' }]
+    end.group_by { |x| x[1].split('/')[1] }.values.flat_map { |v| v.sort_by { |x| -x[2] }.first(6) }
+    soon = active.select { |l| l['req_to'].to_i > @now && l['photo'] }.sort_by { |l| l['req_to'].to_i }.first(8)
+    done = all.select { |l| (r = l['result']) && r['price'].to_f.positive? && l['status'] != 'active' }.sort_by { |l| -l['closed'].to_i }.first(4)
+    plist = active.group_by { |l| l['platform'] }.map { |pl, ls| [PLAT_NAME[pl] || pl, "/ploshchadki/#{slug(pl.sub(/\.by\z/, ''))}/", ls.size] }.sort_by { |x| -x[2] }
+    li = ->(items) { items.map { |t, u, n| %(<li><a href="#{u}">#{h(t)}</a> <small>#{nf(n)}</small></li>) }.join }
+    body = <<~HTML
+      <div class="wrap home-seo">
+      <div class="cat-head"><h1>#{h(HOME[:h1])}</h1><p class="lede">#{h(lede)}</p></div>
+      <section class="sec"><div class="sec-h"><h2>Разделы каталога</h2></div><div class="home-secs">#{secs}</div></section>
+      #{soon.any? ? %(<section class="sec"><div class="sec-h"><h2>Ближайшие торги</h2></div><div class="grid">#{soon.map { |l| card(l) }.join}</div></section>) : ''}
+      #{done.any? ? %(<section class="sec"><div class="sec-h"><h2>Итоги последних торгов</h2></div><div class="grid">#{done.map { |l| card(l) }.join}</div></section>) : ''}
+      <section class="sec seo-links"><h2>Популярное</h2><ul>#{li.(pop)}</ul></section>
+      <section class="sec seo-links"><h2>Площадки</h2><ul>#{li.(plist)}</ul></section>
+      <section class="sec home-about"><h2>О МониТорге</h2>#{HOME[:about].map { |p| "<p>#{h(p)}</p>" }.join}</section>
+      </div>
+    HTML
+    org = { '@context' => 'https://schema.org', '@type' => 'Organization', 'name' => 'МониТорг', 'url' => "#{SITE}/",
+            'email' => 'info@monitorg.by', 'areaServed' => 'BY' }
+    site = { '@context' => 'https://schema.org', '@type' => 'WebSite', 'name' => 'МониТорг', 'url' => "#{SITE}/", 'inLanguage' => 'ru',
+             'potentialAction' => { '@type' => 'SearchAction', 'target' => "#{SITE}/catalog?q={search_term_string}",
+                                     'query-input' => 'required name=search_term_string' } }
+    about = active.size >= 1000 ? active.size / 1000 * 1000 : active.size / 100 * 100
+    desc = format(HOME[:desc], about: nf(about), plats: plats)
+    write('/', HOME[:title], desc, body, [org, site], true, nil)
   end
 
   def title_fit(t)
@@ -511,6 +569,8 @@ module Pages
                 "#{lots_n(act.size)} на площадке «#{nm}»: #{secs.map { |n, c| "#{n.downcase} — #{c}" }.join(', ')}. Итоги торгов и удобный поиск — на МониТорге.",
                 [['Площадки', nil], [nm, nil]], act, done, [], "/#/catalog?plat=#{CGI.escape(pl)}", true)
     end
+
+    home_page(active, all, plans)
 
     @meta = all.to_h { |l| [l['id'], lot_meta(l)] }
     art = all.to_h { |l| [l['id'], l['art']] }

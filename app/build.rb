@@ -480,6 +480,7 @@ SHELL = lambda do |title: nil, desc: nil, path: nil, robots: 'noindex, nofollow'
     %(<script src="/assets/data.js?v=#{now}"></script>\n<script src="/assets/app.js?v=#{now}"></script>\n)
 end
 File.write(File.join(OUT, 'index.html'), SHELL.())
+File.write(File.join(OUT, 'app.html'), SHELL.())
 File.write(File.join(OUT, 'arch.js'), "__arch(#{JSON.generate(arch1.map(&slim))});")
 unless ENV['SEO_PAGES'] == '0'
   t0 = Time.now
