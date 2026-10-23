@@ -99,8 +99,8 @@ lots.each do |l|
   if l['status'] == 'active' && l['req_to'].to_i <= now
     l.merge!('status' => 'archive', 'closed' => l['req_to'], 'why' => 'deadline')
   end
-  if l['platform'] == 'konfiskat.by' && (a = l['name'].to_s[/по адресу:?\s*(.+)/, 1]) && !region_of(a).empty?
-    l['location'] = a.sub(/,?\s*общая площадь.*/i, '').strip[0, 160]
+  if l['platform'] == 'konfiskat.by' && (a = Obj.kf_name_addr(l['name']))
+    l['location'] = a
   end
   l['location'] = 'г. Минск' if l['platform'] == 'konfiskat.by' && l['location'].to_s.strip.empty?
   l['region'] = region_of(l['location'])
@@ -355,7 +355,7 @@ order.group_by { |l| Zlib.crc32(l['id']) % PACKS }.each do |pk, chunk|
     x.merge!((sim[l['key']] || {}).slice('c', 'h'))
     x['p'] = l['pics'] if (l['pics'] || []).size.positive?
     if l['status'] == 'active' && l['geo'].is_a?(Array)
-      x['g'] = l['geo'] + [l['platform'] == 'konfiskat.by' ? Obj.storage(Obj.rows_of(secs)) : l['location']]
+      x['g'] = l['geo'] + [l['platform'] == 'konfiskat.by' ? Obj.kf_addr(l['name'], Obj.rows_of(secs)) : l['location']]
     end
     if l['rent']
       rt = l['rent']

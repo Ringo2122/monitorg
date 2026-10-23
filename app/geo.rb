@@ -108,10 +108,12 @@ module Geo
       no_reg.each { |l| l['region'] = region_of(l['location']) }
     end
     todo = db.values.select { |l| l['status'] == 'active' && l['geo_try'].to_i < 2 &&
-                                  (!l.key?('geo') || (l['geo_v'] != V && (l['geo'].nil? || l['geo'][2] == 'p'))) }
+                                  (!l.key?('geo') || (l['geo_v'] != V && (l['geo'].nil? || l['geo'][2] == 'p')) ||
+                                   (l['platform'] == 'konfiskat.by' && l['geo'].nil? && !l['geo_q'] && Obj.kf_name_addr(l['name']))) }
     todo.each do |l|
       break if asked >= CAP || Time.now > stop
-      addr = l['platform'] == 'konfiskat.by' ? Obj.storage(Obj.rows_of(Store.details(l['key']))) : l['location']
+      addr = l['platform'] == 'konfiskat.by' ? Obj.kf_addr(l['name'], Obj.rows_of(Store.details(l['key']))) : l['location']
+      l['geo_q'] = addr if l['platform'] == 'konfiskat.by' && addr
       qs = queries(addr)
       l['geo_v'] = V
       if qs.empty?

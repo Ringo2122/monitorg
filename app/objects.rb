@@ -144,4 +144,14 @@ module Obj
     s = s.sub(/\A.*?\s[-–]\s/, '')
     region_of(s) =~ /обл|Минск/ ? s[0, 160] : nil
   end
+
+  def kf_name_addr(name)
+    a = name.to_s[/по адресу:?\s*(.+)/, 1] or return nil
+    a = a.sub(/,?\s*общая площадь.*/i, '').strip[0, 160]
+    region_of(a).empty? ? nil : a
+  end
+
+  def kf_addr(name, rows)
+    kf_name_addr(name) || storage(rows)
+  end
 end
