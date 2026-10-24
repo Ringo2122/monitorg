@@ -11,6 +11,9 @@ module IndexNow
   BATCH = 10_000
 
   def self.urls(lines)
+    paths = lines.map(&:strip).select { |s| s.start_with?('/') }
+    return paths.map { |p| "#{SITE}#{p}" }.uniq if paths.any?
+
     lines.map { |s| s.strip.sub(/\Adeleting\s+/, '') }
          .map { |p| p =~ %r{\A_p/(.+)\.html\z} ? "#{$1}/index.html" : p }
          .select { |p| p == 'index.html' || p.end_with?('/index.html') }

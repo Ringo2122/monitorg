@@ -202,8 +202,35 @@ module Pages
     dir = File.join(@out, path)
     FileUtils.mkdir_p(dir)
     File.write(File.join(dir, 'index.html'), @shell.(title: title, desc: desc, path: path, robots: robots, ld: ld, route: route, main: body))
-    @sitemap << [path, @lastmod[path] || @now] if index
+    @sitemap << [path, mark(path, [title, desc, robots, JSON.generate(ld), body])] if index
     @n += 1
+  end
+
+  def mark(path, parts)
+    parts = parts.map { |x| x.gsub(%r{<section class="sec"><div class="sec-h"><h2>Похожие.*?</section>}m, '') }
+    h = Digest::MD5.hexdigest(parts.join("\x00"))[0, 12]
+    old = @prev[path]
+    lm = old && old[0] == h ? old[1] : @now
+    @state[path] = [h, lm]
+    lm
+  end
+
+  def load_prev
+    return {} if ENV['SEO_PREV'] == '0'
+    return JSON.parse(File.read(ENV['SEO_PREV'])) if ENV['SEO_PREV'] && File.exist?(ENV['SEO_PREV'])
+    require 'net/http'
+    res = Net::HTTP.get_response(URI("#{SITE}/assets/seo-state.json"))
+    res.is_a?(Net::HTTPSuccess) ? JSON.parse(res.body) : {}
+  rescue StandardError
+    {}
+  end
+
+  def save_state(out)
+    File.write(File.join(out, 'assets', 'seo-state.json'), JSON.generate(@state))
+    changed = @prev.empty? ? [] : @state.select { |p, v| @prev[p].nil? || @prev[p][0] != v[0] }.keys + (@prev.keys - @state.keys)
+    FileUtils.mkdir_p('tmp')
+    File.write(File.join('tmp', 'indexnow.txt'), changed.join("\n"))
+    changed.size
   end
 
   def card(l)
@@ -472,6 +499,8 @@ module Pages
     @n = 0
     @sitemap = []
     @lastmod = {}
+    @state = {}
+    @prev = live ? load_prev : {}
     @tops = tree.map { |t| { k: t['k'], n: t['n'], subs: t['subs'] } }
     @subname = {}
     @tops.each { |t| t[:subs].each { |s| @subname["#{t[:k]}/#{s['k']}"] = s['n'] } }
@@ -608,6 +637,7 @@ module Pages
     File.write(File.join(out, 'sitemap.xml'), %(<?xml version="1.0" encoding="UTF-8"?>\n<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n) +
       files.keys.map { |f| "<sitemap><loc>#{SITE}/#{f}</loc><lastmod>#{iso(now)}</lastmod></sitemap>" }.join("\n") + "\n</sitemapindex>\n")
     File.write(File.join(out, 'assets', 'lot-urls.json'), JSON.generate(@lp))
-    { pages: @n, indexed: @sitemap.size, lots: all.size, slices: plans.size }
+    ch = live ? save_state(out) : 0
+    { pages: @n, indexed: @sitemap.size, lots: all.size, slices: plans.size, changed: ch }
   end
 end

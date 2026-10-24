@@ -9,7 +9,7 @@ if [ -n "$HOSTER_SSH_KEY" ]; then
        -e "ssh -i $HOME/.ssh/hoster -o BatchMode=yes -o ConnectTimeout=30" \
        _site/ h220178@vh167.hoster.by:www/monitorg.by/ > tmp/hoster_changed.txt; then
     echo "hoster.by: выложено, изменено файлов: $(wc -l < tmp/hoster_changed.txt)"
-    ruby app/indexnow.rb tmp/hoster_changed.txt || true
+    ruby app/indexnow.rb tmp/indexnow.txt || true
   else
     echo "::warning::выкладка на hoster.by не удалась"
   fi

@@ -511,7 +511,7 @@ unless ENV['SEO_PAGES'] == '0'
   t0 = Time.now
   r = Pages.run(out: OUT, active: active, arch: arch, details: DETAILS, tree: Cats.tree, now: now,
                 shell: SHELL, live: ENV['SEO_LIVE'] == '1', cfg: CFG.merge('news' => pub['news'] || CFG['news']))
-  puts "SEO-страницы: #{r[:pages]} (открыто поиску #{r[:indexed]}), лотов #{r[:lots]}, срезов #{r[:slices]}, #{(Time.now - t0).round} с"
+  puts "SEO-страницы: #{r[:pages]} (открыто поиску #{r[:indexed]}, изменилось #{r[:changed]}), лотов #{r[:lots]}, срезов #{r[:slices]}, #{(Time.now - t0).round} с"
 end
 SRCH_ROWS = /\A(?:Адрес \(местонахождение\)|Местоположение имущества|Местонахождение имущества|Местонахождение|Местоположение|Марка|Модель|Марка \(модель\)|Идентификационный номер|Регистрационный номер|Кадастровый номер|Инвентарный номер.*|Инв\. номер|Год выпуска|Год)\z/
 DESC_ROWS = /\A(?:Описание(?: имущества)?|Дополнительная информация(?: по всему лоту)?)\z/

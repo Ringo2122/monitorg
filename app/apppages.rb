@@ -74,7 +74,7 @@ module Pages
     desc = desc[0, 167].sub(/[\s,;:–—-]+\S*\z/, '') + '…' if desc.size > 170
     robots = @live ? 'index, follow' : 'noindex, nofollow'
     File.write(f, @shell.(title: title, desc: desc, path: path, robots: robots, ld: ld, route: path, main: body))
-    @sitemap << [path, @now]
+    @sitemap << [path, mark(path, [title, desc, robots, JSON.generate(ld), body])]
     @n += 1
   end
 
