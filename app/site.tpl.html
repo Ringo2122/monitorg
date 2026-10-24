@@ -685,6 +685,7 @@ applyTheme(window.THEME);
   .tag.n{background:var(--ok);color:#fff}
   .lotname{font-size:24px;line-height:1.28;max-width:62ch;margin-bottom:6px}
   .lothead .where{color:var(--ink-2);font-size:14px}
+  .nf .nf-q{display:flex;gap:8px;max-width:460px;margin:14px auto}.nf .nf-q input{flex:1;min-width:0;padding:10px 12px;border:1px solid var(--hair);border-radius:10px;background:var(--card);color:var(--ink);font:inherit}
   .lothead .full{color:var(--ink-2);font-size:14px;line-height:1.45;max-width:80ch;margin:0 0 6px}
   .banner{margin-top:16px;padding:12px 16px;border-radius:12px;background:var(--accent-l);
     border:1px solid var(--accent);font-size:14px}
@@ -2946,7 +2947,9 @@ function pageLot(id){
     });
     return;
   }
-  if(!l){ document.title = 'Лот не найден' + TSUF; $('#app').innerHTML = `<div class="wrap">${crumbs([['Лот не найден']])}<div class="panel empty">Лот не найден - возможно, он уже удалён из архива.</div></div>`; return; }
+  if(!l){ document.title = 'Лот не найден' + TSUF; $('#app').innerHTML = notFoundBox('Лот не найден',
+    'Возможно, торги давно завершились и лот удалён из архива или ссылка набрана с ошибкой. Найдите похожий лот:',
+    [['Все лоты', '#/catalog', 1], ['Архив торгов', '#/catalog?st=arch']]); return; }
   const arch = l.status==='archive', d = left(l), pc = pchg(l);
   document.title = lotTitle(l) + TSUF;
   $('#app').innerHTML = `<div class="wrap">
@@ -4658,9 +4661,15 @@ function render(path, params){
 // адрес, которого нет (22.10: показывалась главная — для поисковика это копия главной; сервер отдаёт 404)
 function pageNotFound(){
   document.title = 'Страница не найдена' + TSUF;
-  $('#app').innerHTML = `<div class="wrap">${crumbs([['Страница не найдена']])}<div class="panel empty"><h1>Страница не найдена</h1>
-    <p>Такой страницы на МониТорге нет: возможно, адрес набран с ошибкой или страница удалена.</p>
-    <p><a class="btn pri" href="#/catalog">Все лоты</a> <a class="btn" href="#/">На главную</a></p></div></div>`;
+  $('#app').innerHTML = notFoundBox('Страница не найдена', 'Такой страницы на МониТорге нет: возможно, адрес набран с ошибкой или страница удалена.',
+    [['Все лоты', '#/catalog', 1], ['На главную', '#/']]);
+}
+// «не найдено» — страница и лот одинаково (24.10): пояснение, поиск по каталогу (обычная форма: /catalog?q=…) и кнопки
+function notFoundBox(title, text, btns){
+  return `<div class="wrap">${crumbs([[title]])}<div class="panel empty nf"><h1>${esc(title)}</h1><p>${esc(text)}</p>
+    <form class="nf-q" action="/catalog" method="get" role="search"><input name="q" type="search" placeholder="Название, адрес, марка, VIN" aria-label="Поиск по лотам" required>
+      <button class="btn pri" type="submit">Найти</button></form>
+    <p>${btns.map(([t, u, pri]) => `<a class="btn${pri ? ' pri' : ''}" href="${u}">${esc(t)}</a>`).join(' ')}</p></div></div>`;
 }
 function go(){
   const h = curRoute();
