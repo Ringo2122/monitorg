@@ -367,6 +367,14 @@ unless RESULTS_ONLY || YEAR_ARCH
   Bav.run(bav_mg)
 end
 
+RENT_RIGHT = /\A[^а-яё]*(?:право\s+(?:на\s+)?заключени\S*\s+договор\S*\s+аренды|прав[оа]\s+аренды)/i
+db.each_value do |l|
+  next unless l['section'] == 'nedvizhimost' && l['name'].to_s =~ RENT_RIGHT
+  l['section'] = 'arenda'
+  l['section_ru'] = SEC_RU['arenda']
+  stat['право аренды: из недвижимости'] += 1
+end
+
 unless RESULTS_ONLY || YEAR_ARCH
   kf = db.values.select { |l| l['platform'] == 'konfiskat.by' && l['status'] == 'active' && !l['tk_chk'] }
   re_cat = nil
