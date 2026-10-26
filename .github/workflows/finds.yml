@@ -1,0 +1,77 @@
+name: Находки
+
+on:
+  workflow_run:
+    workflows: ['Обновление сайта']
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      deliver:
+        description: 'Разложить новые сейчас (без ожидания 9:00)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: read     # смотрим, был ли в прогоне сайта обход площадок
+
+concurrency:
+  group: finds
+  cancel-in-progress: false
+
+jobs:
+  finds:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      TZ: Europe/Minsk
+      SB_URL: ${{ secrets.SB_URL }}
+      SB_KEY: ${{ secrets.SB_KEY }}
+      SB_TOKEN: ${{ secrets.SB_TOKEN }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - id: c
+        name: Был ли обход площадок
+        run: |
+          if [ "${{ github.event_name }}" = 'workflow_dispatch' ]; then echo "go=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          n=$(gh api "repos/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}/jobs" \
+                --jq '[.jobs[].steps[]? | select(.name == "Рыночный ориентир (Kufar)" and .conclusion == "success")] | length')
+          echo "go=$([ "$n" -gt 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        if: steps.c.outputs.go == 'true'
+        with:
+          ref: main      # память после обхода
+          sparse-checkout: |
+            app
+            data
+
+      - uses: ruby/setup-ruby@14594264cd68ce8a2345dd349bc3d138a4ef85c8 # v1
+        if: steps.c.outputs.go == 'true'
+        with:
+          ruby-version: '3.2'
+
+      - name: Справочник и объявления Kufar (3 дня)
+        if: steps.c.outputs.go == 'true'
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            data/kufar_tax.json
+            data/finds_cache.json
+          key: finds-${{ github.run_id }}
+          restore-keys: finds-
+
+      - name: Оценка и раскладка
+        if: steps.c.outputs.go == 'true'
+        run: |
+          mkdir -p tmp
+          ruby app/finds.rb data/lots.json tmp/finds.json --db ${{ inputs.deliver && '--deliver' || '' }}
+
+      - name: Сигнал о сбое — в Telegram
+        if: failure()
+        continue-on-error: true
+        env:
+          ALERT_TG_TOKEN: ${{ secrets.ALERT_TG_TOKEN }}
+          ALERT_TG_CHAT: ${{ secrets.ALERT_TG_CHAT }}
+        run: ruby app/alert.rb --event "«Находки» упали"

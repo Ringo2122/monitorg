@@ -1012,7 +1012,7 @@ async function pUsers(params){
 }
 async function pUser(id, params){
   const [[u], ul, ld, rp, ss] = await Promise.all([
-    api(`users?id=eq.${id}&select=id,login,name,email,phone,telegram,created_at,last_seen,auth_id,purpose,purpose_note,confirmed_at,consent_at,news_at`),
+    api(`users?id=eq.${id}&select=id,login,name,email,phone,telegram,created_at,last_seen,auth_id,purpose,purpose_note,confirmed_at,consent_at,news_at,features`),
     api(`user_lots?user_id=eq.${id}&select=lot,fav,watch,stage,note,updated_at&order=updated_at.desc`),
     api(`leads?user_id=eq.${id}&select=*&order=created_at.desc`),
     api(`reports?user_id=eq.${id}&select=id,lot,lot_name,title,created_at,read_at,file_name,file_size&order=created_at.desc`),
@@ -1029,6 +1029,7 @@ async function pUser(id, params){
       ${u.confirmed_at ? 'почта подтверждена ' + dt(u.confirmed_at).slice(0,10) : '<span style="color:var(--bad)">почта не подтверждена</span>'} ·
       ${u.consent_at ? 'согласие на обработку данных ' + dt(u.consent_at).slice(0,10) : 'согласия на обработку данных нет'} ·
       ${u.news_at ? 'согласен на рассылку с ' + dt(u.news_at).slice(0,10) : 'рассылку не получает'}</p>` : ''}
+    <div class="panel"><h2>Разделы кабинета</h2><label class="chk"><input type="checkbox" id="u-finds"${(u.features||{}).finds?' checked':''}> «Находки» — машины на торгах дешевле рынка (до 30 новых в день)</label></div>
     ${u.login === 'guest' ? '' : ntfForm(false, 'Придёт в раздел «Уведомления» его личного кабинета с пометкой «Сообщение». Такие уведомления приходят всегда, их нельзя отключить в профиле.')}
     <div class="panel"><h2>Отправить отчёт по объекту</h2>
       <p class="muted" style="margin-top:0">Отчёт появится в разделе «Отчёты» кабинета, пользователь получит уведомление.</p>
@@ -1056,6 +1057,7 @@ async function pUser(id, params){
   V().querySelectorAll('[data-rdel]').forEach(b=>b.onclick = async ()=>{ if(!confirm('Удалить отчёт из кабинета пользователя?')) return;
     try{ await rfCall(`a=rm&r=${b.dataset.rdel}`, { method:'POST' }); }catch(e){}   // файлы на хостинге — вместе с отчётом
     try{ await api(`reports?id=eq.${b.dataset.rdel}`, { method:'DELETE' }); toast('Удалено'); route(); }catch(err){ toast(err.message, true); } });
+  $('#u-finds').onchange = async e => { try{ await rpc('admin_user_features', { p_user:+id, p_features:{ finds:e.target.checked } }); toast(e.target.checked ? '«Находки» включены' : '«Находки» выключены'); }catch(err){ toast(err.message, true); e.target.checked = !e.target.checked; } };
   if($('#n-send')) ntfBind(id, () => { $('#n-title').value = $('#n-body').value = $('#n-lot').value = ''; });
   // поиск лота для отчёта по всему каталогу (22.10: в списке были только избранное и заявки пользователя — часто пусто)
   let lq = 0;
