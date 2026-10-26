@@ -31,8 +31,20 @@ module Src
 
   CURL = %w[curl -sS -L --proto =http,https --proto-redir =http,https --max-filesize 20000000].freeze
 
-  KF_HOSTS = %r{\Ahttps?://(www\.)?((torgi)?konfiskat|expert-torgi|auction24|belauction|gostorg|minskestate)\.by(/|:|\z)}i
+  KF_HOSTS = %r{\Ahttps?://(www\.)?((torgi)?konfiskat|expert-torgi|auction24|belauction)\.by(/|:|\z)}i
+
+  ME_CA = %r{\Ahttps?://(www\.)?minskestate\.by(/|:|\z)}i
+  def ca_bundle
+    @ca_bundle ||= begin
+      sys = ['/etc/ssl/certs/ca-certificates.crt', '/etc/ssl/cert.pem'].find { |f| File.exist?(f) }
+      f = File.join(Dir.tmpdir, 'monitorg-ca.pem')
+      File.write(f, (sys ? File.read(sys) : '') + "\n" + File.read(File.join(__dir__, 'certs', 'le-yr2-chain.pem')))
+      f
+    end
+  end
+
   def curl_for(url)
+    return [*CURL, '--cacert', ca_bundle] if url.to_s =~ ME_CA
     ENV['KF_CURL'].to_s.empty? || url.to_s !~ KF_HOSTS ? CURL : ['bash', ENV['KF_CURL'], *CURL.drop(1)]
   end
 
