@@ -273,9 +273,6 @@ module Finds
     [out.sort_by { |x| -x['profit'] }, stat]
   end
 
-  DAILY = 30
-  DELIVER_HOUR = 9
-
   def sync(res)
     now = Time.now
     rows = res.select { |x| x['find'] }.map do |x|
@@ -289,25 +286,15 @@ module Finds
     [rows.size, old.size]
   end
 
-  def deliver(force: false)
+  def deliver
     now = Time.now
     today = now.strftime('%Y-%m-%d')
-    return 'рано' if now.hour < DELIVER_HOUR && !force
-    users = Sb.get('users?select=id,features,finds_cfg').select { |u| (u['features'] || {})['finds'] }
-    cands = Sb.get('finds?active=eq.true&select=lot,profit,total,region,city,req_to&order=profit.desc')
+    users = Sb.get('users?select=id,features').select { |u| (u['features'] || {})['finds'] }
+    cands = Sb.get('finds?active=eq.true&select=lot,req_to')
     cands.select! { |c| Time.parse(c['req_to'].to_s) > now rescue true }
     users.map do |u|
-      have = Sb.get("user_finds?user_id=eq.#{u['id']}&select=lot,delivered_on")
-      done_today = have.count { |h| h['delivered_on'] == today }
-      next "#{u['id']}: уже #{done_today}" if done_today >= DAILY
-      seen = have.map { |h| h['lot'] }
-      cfg = u['finds_cfg'] || {}
-      budget = cfg['budget'].to_f
-      places = Array(cfg['places'])
+      seen = Sb.get("user_finds?user_id=eq.#{u['id']}&select=lot").map { |h| h['lot'] }
       pick = cands.reject { |c| seen.include?(c['lot']) }
-                  .select { |c| budget <= 0 || c['total'].to_f <= budget }
-                  .select { |c| places.empty? || places.include?(c['region']) || places.include?("#{c['region']}|#{c['city']}") }
-                  .first(DAILY - done_today)
       Sb.upsert('user_finds', pick.map { |c| { 'user_id' => u['id'], 'lot' => c['lot'], 'status' => 'new', 'delivered_on' => today } }, 'user_id,lot') if pick.any?
       "#{u['id']}: +#{pick.size}"
     end.join(', ')
@@ -318,15 +305,19 @@ if $PROGRAM_NAME == __FILE__
   lots = JSON.parse(File.read(ARGV.find { |a| !a.start_with?('--') } || File.join(Store::DATA, 'lots.json'), encoding: 'utf-8'))
   lots = lots.values if lots.is_a?(Hash)
   res, stat = Finds.run(lots)
+  require_relative 'finds_realty'
+  rr, rst = FindsRealty.run(lots, Finds)
+  res += rr
   out = ARGV.reject { |a| a.start_with?('--') }[1] || 'tmp/finds.json'
   File.write(out, JSON.pretty_generate(res))
   puts stat.map { |k, v| "#{k}: #{v}" }.join(', ')
-  puts "находок: #{res.count { |x| x['find'] }}"
+  puts rst.map { |k, v| "#{k}: #{v}" }.join(', ')
+  puts "находок: #{res.count { |x| x['find'] }} (недвижимость #{rr.count { |x| x['find'] }})"
   if ARGV.include?('--db')
     require_relative 'sb'
     abort 'нет доступа к базе (SB_URL, SB_KEY, SB_TOKEN)' unless Sb.on?
     n, off = Finds.sync(res)
     puts "в базе: активных #{n}, снято #{off}"
-    puts "раскладка: #{Finds.deliver(force: ARGV.include?('--deliver'))}"
+    puts "раскладка: #{Finds.deliver}"
   end
 end

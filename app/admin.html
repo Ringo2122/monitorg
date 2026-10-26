@@ -1029,7 +1029,7 @@ async function pUser(id, params){
       ${u.confirmed_at ? 'почта подтверждена ' + dt(u.confirmed_at).slice(0,10) : '<span style="color:var(--bad)">почта не подтверждена</span>'} ·
       ${u.consent_at ? 'согласие на обработку данных ' + dt(u.consent_at).slice(0,10) : 'согласия на обработку данных нет'} ·
       ${u.news_at ? 'согласен на рассылку с ' + dt(u.news_at).slice(0,10) : 'рассылку не получает'}</p>` : ''}
-    <div class="panel"><h2>Разделы кабинета</h2><label class="chk"><input type="checkbox" id="u-finds"${(u.features||{}).finds?' checked':''}> «Находки» — машины на торгах дешевле рынка (до 30 новых в день)</label></div>
+    <div class="panel"><h2>Разделы кабинета</h2><label class="chk"><input type="checkbox" id="u-finds"${(u.features||{}).finds?' checked':''}> «Находки» — машины и недвижимость на торгах дешевле рынка</label></div>
     ${u.login === 'guest' ? '' : ntfForm(false, 'Придёт в раздел «Уведомления» его личного кабинета с пометкой «Сообщение». Такие уведомления приходят всегда, их нельзя отключить в профиле.')}
     <div class="panel"><h2>Отправить отчёт по объекту</h2>
       <p class="muted" style="margin-top:0">Отчёт появится в разделе «Отчёты» кабинета, пользователь получит уведомление.</p>
