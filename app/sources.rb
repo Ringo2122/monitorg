@@ -31,7 +31,7 @@ module Src
 
   CURL = %w[curl -sS -L --proto =http,https --proto-redir =http,https --max-filesize 20000000].freeze
 
-  KF_HOSTS = %r{\Ahttps?://(www\.)?((torgi)?konfiskat|expert-torgi|auction24|belauction)\.by(/|:|\z)}i
+  KF_HOSTS = %r{\Ahttps?://(www\.)?((torgi)?konfiskat|expert-torgi|auction24|belauction|gostorg|minskestate)\.by(/|:|\z)}i
   def curl_for(url)
     ENV['KF_CURL'].to_s.empty? || url.to_s !~ KF_HOSTS ? CURL : ['bash', ENV['KF_CURL'], *CURL.drop(1)]
   end
