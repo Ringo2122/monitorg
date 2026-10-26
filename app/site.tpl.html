@@ -1141,17 +1141,28 @@ applyTheme(window.THEME);
   .fnm{font-weight:700;color:var(--ink);text-decoration:none}.fnm:hover{color:var(--brand)}
   /* «Находки» (27.10): таблица машин, строка раскрывается расчётом */
   .nd-lede{color:var(--ink-2);margin:-6px 0 14px;font-size:14.5px}
-  .nd-cfg{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;padding:12px 14px;margin-bottom:14px;font-size:14px}
-  .nd-cfg label{display:flex;align-items:center;gap:8px;color:var(--ink-2)}
-  .nd-cfg input,.nd-cfg select{padding:6px 8px;border:1px solid var(--hair-2);border-radius:8px;font:inherit;background:var(--card);color:var(--ink)}
-  .nd-cfg input{width:100px}
-  .nd-chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-  .nd-chp{background:var(--brand-l);color:var(--brand-d);border:0;border-radius:14px;padding:3px 10px;font:600 13px inherit;cursor:pointer}
-  .nd-chp b{margin-left:6px;opacity:.6;font-weight:400}
-  .nd-chp.off{background:var(--card);border:1px solid var(--hair-2);color:var(--ink-2);font-weight:500}
-  .nd-add{display:flex;gap:6px;align-items:center}
-  .nd-note{flex-basis:100%;color:var(--ink-3);font-size:12.5px}
-  .nd-tabs .c{opacity:.7;margin-left:4px}
+  .nd-seg{display:inline-flex;background:var(--card);border:1px solid var(--hair-2);border-radius:12px;padding:4px;gap:4px;margin-bottom:10px;max-width:100%;overflow-x:auto}
+  .nd-seg a{padding:8px 18px;border-radius:9px;text-decoration:none;color:var(--ink);font-weight:600;font-size:15px;white-space:nowrap}
+  .nd-seg a.on{background:var(--brand);color:#fff}
+  .nd-seg .c,.nd-sub .c,.nd-stt .c{opacity:.7;margin-left:5px;font-weight:500}
+  .nd-sub{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px}
+  .nd-sub a{padding:5px 12px;border-radius:16px;border:1px solid var(--hair-2);text-decoration:none;color:var(--ink-2);background:var(--card);font-size:13.5px}
+  .nd-sub a.on{border-color:var(--brand);color:var(--brand);background:var(--brand-l);font-weight:600}
+  .nd-flt{display:flex;gap:10px 16px;flex-wrap:wrap;align-items:center;font-size:14px;margin-bottom:12px;color:var(--ink-2)}
+  .nd-flt label{display:flex;align-items:center;gap:8px}
+  .nd-flt input,.nd-flt select{padding:6px 8px;border:1px solid var(--hair-2);border-radius:8px;font:inherit;background:var(--card);color:var(--ink)}
+  .nd-flt input{width:100px} .nd-flt .lnk{margin:0;font-size:13.5px}
+  .nd-stt{display:flex;gap:18px;flex-wrap:wrap;border-bottom:1px solid var(--hair);margin-bottom:12px;font-size:14.5px;align-items:center}
+  .nd-stt a{padding:8px 0;text-decoration:none;color:var(--ink-2);border-bottom:2px solid transparent;margin-bottom:-1px}
+  .nd-stt a.on{color:var(--ink);font-weight:700;border-color:var(--brand)}
+  .nd-stt .sp{flex:1}
+  .nd-ic{position:relative}
+  .nd-pop{position:absolute;right:0;top:38px;z-index:20;background:var(--card);border:1px solid var(--hair-2);border-radius:10px;box-shadow:var(--sh-2);padding:6px;width:200px;font-size:13.5px;display:flex;flex-direction:column}
+  .nd-pop b{padding:4px 8px;font-size:12px;color:var(--ink-3);font-weight:600}
+  .nd-ic .nd-pop button{width:auto;height:auto;display:block;border:0;background:none;text-align:left;padding:7px 8px;border-radius:6px;color:var(--ink);cursor:pointer;font:inherit}
+  .nd-ic .nd-pop button:hover{background:var(--brand-l);color:var(--brand)}
+  .nd-ic .nd-pop button.nr{color:var(--ink-3);border-top:1px solid var(--hair);border-radius:0;margin-top:4px}
+  .nd-wrap{overflow:visible}
   .nd-srt{font-size:13.5px;color:var(--ink-2)} .nd-srt select{font:inherit;border:1px solid var(--hair-2);border-radius:8px;padding:4px 6px;background:var(--card);color:var(--ink)}
   .nd-tr{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700;border-radius:10px;padding:2px 8px;white-space:nowrap}
   .nd-tr::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
@@ -1159,7 +1170,6 @@ applyTheme(window.THEME);
   .nd-dmg{display:inline-block;font-size:12px;font-weight:700;border-radius:10px;padding:0 6px;background:rgba(220,38,38,.12);color:#c0392b}
   .nd-st{display:inline-block;font-size:11.5px;font-weight:700;border-radius:10px;padding:0 6px;background:var(--brand-l);color:var(--brand-d)}
   .nd-pf{color:var(--ok);font-weight:800} .nd-dl{color:#c0392b;font-weight:600}
-  .nd-wrap{overflow-x:auto}
   .nd-tb{width:100%;border-collapse:collapse;font-size:14px}
   .nd-tb th{font-size:12px;color:var(--ink-3);font-weight:600;text-align:left;padding:10px;border-bottom:1px solid var(--hair);white-space:nowrap}
   .nd-tb td{padding:10px;border-bottom:1px solid var(--hair);vertical-align:middle}
@@ -1192,10 +1202,6 @@ applyTheme(window.THEME);
   .nd-acts .btn{padding:7px 12px;font-size:13.5px}
   .nd-acts .btn.on{border-color:var(--brand);color:var(--brand);background:var(--brand-l)}
   .nd-links{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;font-size:13.5px;font-weight:600}
-  .nd-rsn[hidden]{display:none}
-  .nd-rsn{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:10px;font-size:13px}
-  .nd-rsn button{border:1px solid var(--hair-2);border-radius:14px;padding:3px 10px;background:var(--card);color:var(--ink-2);cursor:pointer;font:inherit}
-  .nd-rsn button:hover,.nd-rsn button.on{border-color:var(--brand);color:var(--brand)}
   @media (max-width:760px){ .nd-x-in{grid-template-columns:1fr} .nd-tb .nd-hm{display:none} }
   .fmeta{font-size:13px;color:var(--ink-2);margin:3px 0 8px}
   .fmeta .dl{color:var(--accent);font-weight:700}
@@ -4489,29 +4495,36 @@ function ndCalc(x){
 }
 async function meFinds(M, arg, params){
   if(!(ME.features||{}).finds){ M.innerHTML = '<div class="panel empty">Раздел «Находки» не подключён.</div>'; return; }
+  // 27.10 (вариант 1): переключатель «Всё / Машины / Недвижимость», у недвижимости — типы; ниже статусы
   const tab = ND_TABS.some(t=>t[0]===params.get('f')) ? params.get('f') : 'new';
+  const cat = ['avto','realty'].includes(params.get('c')) ? params.get('c') : '';
+  const sub = cat === 'realty' && ND_TN[params.get('t')] ? params.get('t') : '';
   const sort = params.get('s') || 'profit';
   const D = await urpc('finds_my'), cfg = D.cfg || {};
   const mine = Object.fromEntries((D.mine||[]).map(u=>[u.lot, u]));
-  const places = Array.isArray(cfg.places) ? cfg.places : [], types = Array.isArray(cfg.types) ? cfg.types : [];
-  // фильтры только скрывают: тип, «вложить не больше», места
-  const fit = f => (!types.length || types.includes(ndType(f.data))) && (!cfg.budget || f.total <= cfg.budget)
-    && (!places.length || places.includes(f.region) || places.includes(f.region + '|' + f.city));
-  const all = (D.all||[]).filter(f=>f.data && fit(f));
-  const hidden = (D.all||[]).filter(f=>f.data).length - all.length;
-  const pick = t => t === 'all' ? all.filter(f=>f.active) : all.filter(f=>(mine[f.lot]||{}).status === t);
-  const cnt = Object.fromEntries(ND_TABS.map(([k])=>[k, pick(k).length]));
+  const place = (Array.isArray(cfg.places) ? cfg.places : [])[0] || '';
+  const [pReg, pCity] = place.split('|');
+  // бюджет и место только скрывают — ничего не удаляется
+  const fit = f => (!cfg.budget || f.total <= cfg.budget) && (!place || (pCity ? f.region === pReg && f.city === pCity : f.region === pReg));
+  const base = (D.all||[]).filter(f=>f.data && fit(f));
+  const inTab = f => tab === 'all' ? f.active : (mine[f.lot]||{}).status === tab;
+  const inCat = (f, c, t) => { const k = ndType(f.data); return !c || (c === 'avto' ? k === 'avto' : k !== 'avto' && (!t || k === t)); };
+  const cnt = (c, t) => base.filter(f=>inTab(f) && inCat(f, c, t)).length;
+  const scnt = Object.fromEntries(ND_TABS.map(([k])=>[k, base.filter(f=>(k === 'all' ? f.active : (mine[f.lot]||{}).status === k) && inCat(f, cat, sub)).length]));
   const rank = f => { const x = f.data; return x.method === 'rent' ? x.income : x.method === 'torgi' ? x.total * x.discount / 100 : x.profit; };
   const SORT = { profit:(a,b)=>rank(b)-rank(a), pct:(a,b)=>(b.data.pct||b.data.discount||0)-(a.data.pct||a.data.discount||0), req:(a,b)=>a.data.req_to-b.data.req_to };
-  const list = pick(tab).sort(SORT[sort] || SORT.profit);
+  const list = base.filter(f=>inTab(f) && inCat(f, cat, sub)).sort(SORT[sort] || SORT.profit);
+  const all = D.all || [];
   const regs = Object.keys(PLACES || {}).sort((a,b)=>(a==='г. Минск'?0:a==='Минская область'?1:2)-(b==='г. Минск'?0:b==='Минская область'?1:2) || a.localeCompare(b,'ru'));
-  const href = (f, s) => `#/me/finds?f=${f}${(s||sort)!=='profit'?'&s='+(s||sort):''}`;
+  const href = o => { const p = Object.assign({ f:tab, c:cat, t:sub, s:sort }, o), q = [];
+    if(p.f !== 'new') q.push('f=' + p.f); if(p.c) q.push('c=' + p.c); if(p.c === 'realty' && p.t) q.push('t=' + p.t); if(p.s !== 'profit') q.push('s=' + p.s);
+    return '#/me/finds' + (q.length ? '?' + q.join('&') : ''); };
   const trTag = x => `<span class="nd-tr ${ND_TR[x.trust]}">${esc(x.trust)}</span>`;
   const row = f => { const x = f.data, u = mine[f.lot] || {}, l = byId(x.id), d = ndDays(x.req_to), re = x.kind === 'realty';
     const where = re ? x.near : x.city && !/^Остальная/.test(x.city) ? x.city : (x.region || 'место не указано');
     const c = x.car || {};
     const nm = re ? `${ND_TN[x.type]}${x.area ? ', ' + ndArea(x) : ''}` : `${esc(c.brand)} ${esc(c.model)}, ${c.year}`;
-    const sub = re ? esc(x.cond || 'состояние не указано') : [c.km ? nf(c.km) + ' км' : 'пробег не указан', ND_ENG[c.engine], ND_GR[c.gear]].filter(Boolean).join(' · ');
+    const sb = re ? esc(x.cond || 'состояние не указано') : [c.km ? nf(c.km) + ' км' : 'пробег не указан', ND_ENG[c.engine], ND_GR[c.gear]].filter(Boolean).join(' · ');
     const flags = re ? (x.flags||[]).map(t=>` <span class="nd-dmg">⚠ ${esc(t)}</span>`).join('') : x.bad ? ` <span class="nd-dmg" title="В описании: ${esc(x.bad)}…">⚠ проблемы</span>` : '';
     const mkt = x.method === 'rent' ? `${nf(x.rent)}<br><span class="muted" style="font-size:12.5px">в месяц</span>` : x.method === 'torgi' ? `${nf(x.hist.m2)}<br><span class="muted" style="font-size:12.5px">за м² на торгах</span>` : nf(re ? x.mkt : x.market.median);
     const res = x.method === 'rent' ? `<span class="nd-pf">${String(x.payback).replace('.', ',')} лет</span><br><span class="muted" style="font-size:12.5px">окупаемость</span>`
@@ -4519,12 +4532,12 @@ async function meFinds(M, arg, params){
       : `<span class="nd-pf">${x.profit >= 0 ? '+' : ''}${nf(x.profit)}</span><br><span class="muted" style="font-size:12.5px">${x.pct}%</span>`;
     return `<tr class="nd-r${f.active ? '' : ' off'}" data-k="${esc(f.lot)}">
       <td><div class="nd-ph">${l ? pic(l) : noph({ section: re ? 'nedvizhimost' : 'avto' })}</div></td>
-      <td class="nd-nm"><a href="#/lot/${encodeURIComponent(x.id)}">${nm}</a><span>${sub}</span>${flags}${tab==='all' && u.status ? ` <span class="nd-st">${{ new:'новая', study:'изучаю', drop:'отклонена' }[u.status]}</span>` : ''}</td>
+      <td class="nd-nm"><a href="#/lot/${encodeURIComponent(x.id)}">${nm}</a><span>${sb}</span>${flags}${tab==='all' && u.status ? ` <span class="nd-st">${{ new:'новая', study:'изучаю', drop:'отклонена' }[u.status]}</span>` : ''}</td>
       <td style="font-size:13px">${esc(where)}<br><span class="muted">${esc(x.platform)} · ${f.active ? `заявки до ${dt(x.req_to)}${d ? ` <span class="nd-dl">${d}</span>` : ''}` : 'приём заявок завершён'}</span></td>
       <td class="r">${nf(x.total)}</td><td class="r nd-hm">${mkt}</td><td class="r">${res}</td>
       <td class="nd-hm">${trTag(x)}</td>
       <td><div class="nd-ic"><button type="button" data-a="study" class="${u.status==='study'?'on':''}" title="Изучаю" aria-label="Изучаю">${ND_IC.eye}</button>
-        <button type="button" data-a="drop" class="${u.status==='drop'?'on':''}" title="Отклонить" aria-label="Отклонить">${ND_IC.x}</button>
+        <button type="button" data-a="drop" class="${u.status==='drop'?'on':''}" title="${u.status==='drop'?'Вернуть в новые':'Отклонить'}" aria-label="Отклонить">${ND_IC.x}</button>
         <button type="button" data-fav="${esc(x.id)}" class="${(ULOTS[x.id]||{}).fav?'on':''}" title="В избранное" aria-label="В избранное">${IC.star}</button></div></td></tr>`; };
   const exp = f => { const x = f.data, m = x.market || {}, u = mine[f.lot] || {}, re = x.kind === 'realty';
     const ads = x.method === 'torgi'
@@ -4536,62 +4549,55 @@ async function meFinds(M, arg, params){
     return `<tr class="nd-x"><td colspan="8"><div class="nd-x-in"><div>${ndCalc(x)}</div><div>${ads}
       <div class="nd-why"><b>Надёжность ${esc(x.trust)}:</b> ${why}.${!re && x.bad ? ` <b>В описании проблемы</b> («${esc(x.bad)}…») — расчёт как для целой машины, прибыль может быть меньше.` : ''}${re && (x.flags||[]).length ? ` <b>Обратите внимание:</b> ${(x.flags).map(esc).join(', ')}.` : ''}</div>
       <div class="nd-acts"><button class="btn${u.status==='study'?' on':''}" type="button" data-a="study">Изучаю</button>
-        <button class="btn${u.status==='drop'?' on':''}" type="button" data-a="drop">Отклонить</button>
+        <button class="btn${u.status==='drop'?' on':''}" type="button" data-a="drop">${u.status==='drop' ? 'Отклонено' + (u.reason ? ': ' + esc(u.reason) : '') : 'Отклонить'}</button>
         ${u.status && u.status!=='new' ? '<button class="btn" type="button" data-a="new">Вернуть в новые</button>' : ''}
         <button class="btn${(ULOTS[x.id]||{}).fav?' on':''}" type="button" data-fav="${esc(x.id)}">★ В избранное</button></div>
-      <div class="nd-rsn" hidden><span class="muted">Причина:</span>${ND_WHY.map(r=>`<button type="button" data-why="${esc(r)}" class="${u.reason===r?'on':''}">${esc(r)}</button>`).join('')}</div>
       <div class="nd-links"><a href="#/lot/${encodeURIComponent(x.id)}">Карточка лота на МониТорге →</a><a href="${esc(x.url)}" target="_blank" rel="noopener">На площадке ${esc(x.platform)} ↗</a>
         ${x.type === 'kv' ? '<a href="https://realt.by/ocenka-nedvizhimosti/" target="_blank" rel="noopener">Проверить цену на realt.by ↗</a>' : ''}</div>
       </div></div></td></tr>`; };
   M.innerHTML = `<h1>Находки</h1><p class="nd-lede">Машины и недвижимость на торгах, которые можно купить заметно дешевле рынка. Новые приходят после каждого обхода площадок.</p>
-    <div class="panel nd-cfg">
-      <span style="color:var(--ink-2)">Что:</span>
-      <div class="nd-chips">${ND_TYPES.map(([k,t])=>`<button type="button" class="nd-chp${types.includes(k)?'':' off'}" data-type="${k}">${t}</button>`).join('')}</div>
-      <label>Вложить не больше <input id="nd-bud" inputmode="numeric" value="${cfg.budget ? nf(cfg.budget) : ''}" placeholder="без лимита"> BYN</label>
-      <span style="color:var(--ink-2)">Где:</span>
-      <div class="nd-chips">${places.length ? places.map((p,i)=>`<button type="button" class="nd-chp" data-del="${i}" title="Убрать">${esc(ndPlace(p))}<b>×</b></button>`).join('') : '<span class="muted">вся Беларусь</span>'}</div>
-      <span class="nd-add"><select id="nd-reg"><option value="">+ область</option>${regs.map(r=>`<option>${esc(r)}</option>`).join('')}</select>
-        <select id="nd-city" hidden></select><button class="btn sm" type="button" id="nd-plus" hidden>Добавить</button></span>
-      <div class="nd-note">Фильтры только скрывают — ничего не удаляется.${hidden ? ` Сейчас скрыто: ${hidden}.` : ''} Не выбран ни один тип — показываются все.</div></div>
-    <div class="me-tabs nd-tabs">${ND_TABS.map(([k,t])=>`<a href="${href(k)}" class="${k===tab?'on':''}">${t}<span class="c">${cnt[k]}</span></a>`).join('')}
+    <div class="nd-seg">${[['','Всё'],['avto','Машины'],['realty','Недвижимость']].map(([k,t])=>`<a href="${href({ c:k, t:'' })}" class="${k===cat?'on':''}">${t}<span class="c">${cnt(k, '')}</span></a>`).join('')}</div>
+    ${cat === 'realty' ? `<div class="nd-sub"><a href="${href({ t:'' })}" class="${sub?'':'on'}">Все типы</a>${ND_TYPES.filter(([k])=>k!=='avto').map(([k,t])=>`<a href="${href({ t:k })}" class="${k===sub?'on':''}">${t}<span class="c">${cnt('realty', k)}</span></a>`).join('')}</div>` : ''}
+    <div class="nd-flt"><label>Вложить не больше <input id="nd-bud" inputmode="numeric" value="${cfg.budget ? nf(cfg.budget) : ''}" placeholder="без лимита"> BYN</label>
+      <label>Регион <select id="nd-reg"><option value="">Вся Беларусь</option>${regs.map(r=>`<option${r===pReg?' selected':''}>${esc(r)}</option>`).join('')}</select></label>
+      <label>Город или район <select id="nd-city"${pReg ? '' : ' disabled'}>${pReg ? `<option value="">Вся область</option>${((PLACES||{})[pReg]||[]).map(p=>`<option${p===pCity?' selected':''}>${esc(p)}</option>`).join('')}` : '<option>— сначала регион —</option>'}</select></label>
+      ${cfg.budget || place ? '<button class="lnk" type="button" id="nd-clr">Сбросить</button>' : ''}</div>
+    <div class="nd-stt">${ND_TABS.map(([k,t])=>`<a href="${href({ f:k })}" class="${k===tab?'on':''}">${t}<span class="c">${scnt[k]}</span></a>`).join('')}
       <span class="sp"></span><span class="nd-srt">Сортировка <select id="nd-sort">${[['profit','по прибыли'],['req','по сроку подачи'],['pct','по % прибыли']].map(([k,t])=>`<option value="${k}"${k===sort?' selected':''}>${t}</option>`).join('')}</select></span></div>
     ${list.length ? `<div class="panel nd-wrap"><table class="nd-tb"><thead><tr><th></th><th>Объект</th><th>Где · срок</th><th class="r">Вложить</th><th class="r nd-hm">Рынок</th><th class="r">Прибыль</th><th class="nd-hm">Надёжность</th><th></th></tr></thead>
       <tbody>${list.map(row).join('')}</tbody></table></div>`
-    : `<div class="panel empty">${tab==='new' ? 'Новых находок нет — робот добавит их после ближайшего обхода площадок.' : tab==='all' ? 'Кандидатов сейчас нет.' : 'В этом списке пока пусто.'}</div>`}
+    : `<div class="panel empty">${tab==='new' ? 'Новых находок здесь нет — робот добавит их после ближайшего обхода площадок.' : tab==='all' ? 'Кандидатов сейчас нет.' : 'В этом списке пока пусто.'}${cfg.budget || place ? ' Часть может быть скрыта фильтром «Вложить» или «Регион».' : ''}</div>`}
     <p class="muted" style="font-size:13px">Машины: покупка — по итогам торгов этой модели, продажа — медиана Kufar −10% −300 BYN, резерв на ремонт 20%; находка — прибыль от 1 000 BYN и 20% или от 2 500 BYN.
       Недвижимость (города от 20 тыс. жителей, 40 км вокруг Минска и 25 км вокруг областных центров): квартиры, дома, гаражи, участки — похожие объявления Kufar того же класса, у квартир приведены к ценам сделок по realt.by; находка — прибыль от 3 000 BYN и 20% или от 10 000 BYN.
       Коммерция — аренда по нижней четверти ставок, находка — окупаемость до 8 лет. Здания и склады — сравнение с итогами торгов, находка — от 40% дешевле.</p>`;
-  const go = (f, s) => nav(href(f, s), true);
-  const saveCfg = async patch => { try{ await urpc('finds_cfg_set', { p:Object.assign({ budget:cfg.budget||null, places, types }, patch) }); utoast('Фильтр сохранён'); pageMe('finds', params); }catch(e){ utoast(e.message, true); } };
-  $('#nd-sort').onchange = e => go(tab, e.target.value);
+  const saveCfg = async patch => { try{ await urpc('finds_cfg_set', { p:Object.assign({ budget:cfg.budget||null, places: place ? [place] : [], types:[] }, patch) }); pageMe('finds', params); }catch(e){ utoast(e.message, true); } };
+  $('#nd-sort').onchange = e => nav(href({ s:e.target.value }), true);
   $('#nd-bud').onchange = e => { const v = +e.target.value.replace(/\D/g,''); saveCfg({ budget:v || null }); };
-  M.querySelectorAll('[data-type]').forEach(b=>b.onclick = () => { const k = b.dataset.type; saveCfg({ types: types.includes(k) ? types.filter(x=>x!==k) : [...types, k] }); });
-  M.querySelectorAll('[data-del]').forEach(b=>b.onclick = () => saveCfg({ places:places.filter((p,i)=>i !== +b.dataset.del) }));
-  const reg = $('#nd-reg'), city = $('#nd-city'), plus = $('#nd-plus');
-  reg.onchange = () => { const r = reg.value; city.hidden = plus.hidden = !r;
-    city.innerHTML = `<option value="">Вся область</option>` + ((PLACES||{})[r]||[]).map(p=>`<option value="${esc(p)}">${esc(p)}</option>`).join(''); };
-  plus.onclick = () => { const p = city.value ? reg.value + '|' + city.value : reg.value; if(!places.includes(p)) saveCfg({ places:[...places, p] }); };
+  $('#nd-reg').onchange = e => saveCfg({ places: e.target.value ? [e.target.value] : [] });
+  $('#nd-city').onchange = e => saveCfg({ places: [e.target.value ? pReg + '|' + e.target.value : pReg] });
+  if($('#nd-clr')) $('#nd-clr').onclick = () => saveCfg({ budget:null, places:[] });
   const set = async (k, status, reason) => { try{ await urpc('finds_set', { p_lot:k, p_status:status, p_reason:reason||null });
-    utoast({ study:'В списке «Изучаю»', drop:'Отклонено', new:'Возвращено в новые' }[status]); pageMe('finds', params); }catch(e){ utoast(e.message, true); } };
+    utoast({ study:'В списке «Изучаю»', drop:'Отклонено' + (reason ? ': ' + reason : ''), new:'Возвращено в новые' }[status]); pageMe('finds', params); }catch(e){ utoast(e.message, true); } };
+  // «Отклонить»: меню причин прямо у кнопки (27.10: причины внизу раскрытой строки не было видно — казалось, кнопка не работает)
+  const closePop = () => M.querySelectorAll('.nd-pop').forEach(p=>p.remove());
+  const dropMenu = (btn, k) => { const was = btn.parentElement.querySelector('.nd-pop'); closePop(); if(was) return;
+    btn.insertAdjacentHTML('afterend', `<div class="nd-pop"><b>Отклонить — почему?</b>${ND_WHY.map(r=>`<button type="button" data-why="${esc(r)}">${esc(r)}</button>`).join('')}<button type="button" class="nr" data-why="">без причины</button></div>`);
+    btn.parentElement.querySelectorAll('[data-why]').forEach(b=>b.onclick = e => { e.stopPropagation(); set(k, 'drop', b.dataset.why); }); };
+  M.addEventListener('click', e => { if(!e.target.closest('.nd-pop,[data-a="drop"]')) closePop(); }, true);
+  const act = (btn, k) => { const st = (mine[k]||{}).status, a = btn.dataset.a;
+    if(a === 'drop' && st !== 'drop'){ dropMenu(btn, k); return; }
+    set(k, a === st ? 'new' : a); };
   M.querySelectorAll('tr.nd-r').forEach(tr=>{ const k = tr.dataset.k;
-    const open = () => { const nx = tr.nextElementSibling;
-      if(nx && nx.classList.contains('nd-x')){ nx.remove(); tr.classList.remove('on'); return null; }
-      tr.insertAdjacentHTML('afterend', exp(all.find(f=>f.lot===k))); tr.classList.add('on'); const x = tr.nextElementSibling; bindX(x, k); return x; };
     tr.addEventListener('click', e => {
-      if(e.target.closest('a,[data-fav]')) return;
+      if(e.target.closest('a,[data-fav],.nd-pop')) return;
       const a = e.target.closest('[data-a]');
-      if(!a){ open(); return; }
-      const st = (mine[k]||{}).status;
-      if(a.dataset.a === 'drop' && st !== 'drop'){ const x = tr.classList.contains('on') ? tr.nextElementSibling : open(); x.querySelector('.nd-rsn').hidden = false; return; }
-      set(k, st === a.dataset.a ? 'new' : a.dataset.a);
+      if(a){ act(a, k); return; }
+      const nx = tr.nextElementSibling;
+      if(nx && nx.classList.contains('nd-x')){ nx.remove(); tr.classList.remove('on'); return; }
+      tr.insertAdjacentHTML('afterend', exp(all.find(f=>f.lot===k))); tr.classList.add('on');
+      tr.nextElementSibling.querySelectorAll('[data-a]').forEach(b=>b.onclick = e => { e.stopPropagation(); act(b, k); });
     });
   });
-  function bindX(x, k){
-    x.querySelectorAll('[data-a]').forEach(b=>b.onclick = () => {
-      if(b.dataset.a === 'drop' && (mine[k]||{}).status !== 'drop'){ x.querySelector('.nd-rsn').hidden = false; return; }
-      set(k, b.dataset.a === (mine[k]||{}).status ? 'new' : b.dataset.a); });
-    x.querySelectorAll('[data-why]').forEach(b=>b.onclick = () => set(k, 'drop', b.dataset.why));
-  }
 }
 
 async function meNotify(M, arg, params){

@@ -271,7 +271,7 @@ module FindsRealty
       end
       ar = area(l, city, center) or (stat['нет кода места на Kufar'] += 1; next)
       if t == 'comm'
-        ads = kufar_ads(KCAT[t], 'let', ar[0], ar[1]).select { |a| a['p'] < 50_000 }
+        ads = kufar_ads(KCAT[t], 'let', ar[0], ar[1]).select { |a| a['a'].to_f.positive? && (a['p'] / a['a']).between?(2, 200) }
         cs = comps(t, ads, area, nil, nil) or (stat['мало объявлений'] += 1; next)
         sel, how, step = cs
         m2 = sel.map { |a| a['p'] / a['a'] }
