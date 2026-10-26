@@ -23,7 +23,7 @@ jobs:
   finds:
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60   # первый прогон без кэша Kufar — ~28 мин
     env:
       TZ: Europe/Minsk
       SB_URL: ${{ secrets.SB_URL }}
