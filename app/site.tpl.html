@@ -1422,7 +1422,7 @@ const DATA_ALL = window.MT_DATA;
 // срок приёма заявок истёк уже после сборки сайта — в списках активных такого лота нет, страница по ссылке открывается (23.10)
 const DATA = DATA_ALL.filter(l => !l.req_to || l.req_to > Date.now() / 1000);
 const SNAP = window.MT_SNAP;
-const ARCHN = window.MT_ARCHN;          // размер архива по разделам (cut — граница свежего архива), сам архив — в arch.js и arch2.js
+const ARCHN = window.MT_ARCHN;          // размер архива по разделам (cut — граница свежего архива), сам архив — в arch.js и arch-<подраздел>.js (parts — их размеры)
 const CFG = window.MT_CFG;              // из админки: тексты, правила калькулятора, часы обновления, выключенные разделы
 const NPLAT = window.MT_NPLAT;          // сколько всего площадок подключено (с активными лотами и в архиве)
 const PLACES = window.MT_PLACES;        // города и районы внутри областей — второй уровень фильтра «Регион» (regions.rb)
@@ -1456,7 +1456,7 @@ function fromPath(path, search){
   const p = path.replace(/\/index\.html$/, '').replace(/(.)\/+$/, '$1') || '/';
   let m;
   if((m = p.match(/^\/lot\/([^/]+)$/))){ const u = decodeURIComponent(m[1]);
-    const l = [...DATA_ALL, ...(ARCH || ARCH1 || []), ...Object.values(LOT1)].find(x => x.u === u);
+    const l = [...DATA_ALL, ...(ARCH || ARCHX || []), ...Object.values(LOT1)].find(x => x.u === u);
     return '/lot/' + encodeURIComponent(l ? l.id : u) + (search || ''); }
   const tops = (CFG.cats || []).map(t => t.k);
   if((m = p.match(/^\/([a-z]+)(?:\/([a-z]+))?$/)) && tops.includes(m[1])) return '/c/' + m[1] + (m[2] ? '/' + m[2] : '') + (search || '');
@@ -1580,12 +1580,16 @@ function loadDet(l){
   });
 }
 
-// Архив — два файла (build.rb): arch.js — закрытые за 45 дней (ARCHN.cut), arch2.js — старше (архив площадок за год,
-// ≈ 2 МБ) вместе со строками поиска по описанию этих лотов. ARCH1 — только свежий: его хватает календарю на главной
-// и недавним лотам; ARCH — весь архив (каталог архива, старый лот, прошлые месяцы календаря, кабинет).
-let ARCH = null, ARCH1 = null; const ARCHW = [], ARCH1W = [], SRCH2 = {};
-window.__arch = a => { ARCH1 = a; ARCH1W.splice(0).forEach(f=>f()); };
-window.__arch2 = (a, s) => { Object.assign(SRCH2, s); ARCH = ARCH1.concat(a); ARCHW.splice(0).forEach(f=>f()); };
+// Архив (build.rb): arch.js — закрытые за 45 дней (ARCHN.cut); старше — по подразделам каталога, arch-<раздел>-<подраздел>.js
+// (27.10: единый arch2.js вырос до 20 МБ — на телефоне грузился долго, робот Google его обрывал). ARCH1 — свежий;
+// ARCHX — свежий и все загруженные части (каталог архива раздела грузит только свои); ARCH — весь архив, когда загружены
+// все части (календарь прошлых месяцев, старый лот вне пачки)
+let ARCH = null, ARCH1 = null, ARCHX = null; const ARCH1W = [], ARCHP = {}, ARCHPW = {}, SRCH2 = {};
+const archMerge = () => (ARCH1 || []).concat(...Object.values(ARCHP));
+window.__arch = a => { ARCH1 = a; ARCHX = archMerge(); ARCH1W.splice(0).forEach(f=>f()); };
+window.__arch2p = (k, a, s) => { Object.assign(SRCH2, s); ARCHP[k] = a; ARCHX = archMerge();
+  if(Object.keys(ARCHN.parts || {}).every(x=>ARCHP[x])) ARCH = ARCHX;
+  (ARCHPW[k] || []).splice(0).forEach(f=>f()); };
 function loadArch1(){
   return new Promise(res=>{
     if(ARCH1) return res(ARCH1);
@@ -1593,12 +1597,18 @@ function loadArch1(){
     if(ARCH1W.length===1) addScript('/arch.js');
   });
 }
+// части старого архива для области каталога (null — все)
+const archKeys = sc => Object.keys(ARCHN.parts || {}).filter(k => !sc || (sc.sub ? k === sc.top + '-' + sc.sub : k.startsWith(sc.top + '-')));
+function loadArchParts(keys, onPart){
+  return loadArch1().then(()=>Promise.all(keys.map(k=>new Promise(res=>{
+    if(ARCHP[k]) return res();
+    (ARCHPW[k] = ARCHPW[k] || []).push(()=>{ res(); if(onPart) onPart(); });
+    if(ARCHPW[k].length===1) addScript('/arch-' + k + '.js');
+  }))));
+}
 function loadArch(){
-  return new Promise(res=>{
-    if(ARCH) return res(ARCH);
-    ARCHW.push(()=>res(ARCH));
-    if(ARCHW.length===1) loadArch1().then(()=>addScript('/arch2.js'));
-  });
+  if(ARCH) return Promise.resolve(ARCH);
+  return loadArchParts(archKeys(null)).then(()=>ARCH || (ARCH = ARCHX));
 }
 // Номер пачки подробностей лота (det/p<номер>.js) — как в build.rb: crc32(id) % PACKS. Архивный лот лежит в своей пачке
 // целиком: старый лот открываем из неё, а не грузим весь архив (22.10: на макбуке лот из архива думал ~7 с)
@@ -1606,7 +1616,7 @@ const PACKS = 1000;
 const CRC_T = (()=>{ const t = new Uint32Array(256); for(let n=0;n<256;n++){ let c = n; for(let k=0;k<8;k++) c = c&1 ? 0xEDB88320 ^ (c>>>1) : c>>>1; t[n] = c>>>0; } return t; })();
 const crc32 = s => { let c = 0xFFFFFFFF; for(const x of new TextEncoder().encode(s)) c = CRC_T[(c ^ x) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
 const LOT1 = {};   // архивные лоты, открытые по одному
-const byId = id => DATA_ALL.find(l=>l.id===id) || (ARCH||ARCH1||[]).find(l=>l.id===id) || LOT1[id];
+const byId = id => DATA_ALL.find(l=>l.id===id) || (ARCH||ARCHX||[]).find(l=>l.id===id) || LOT1[id];
 
 /* ───────── шапка и меню ───────── */
 $('#f-upd').textContent = dtm(SNAP);
@@ -2164,7 +2174,7 @@ function eyes(root){
 }
 
 function filterPanel(list, f, sc){
-  const arch = f.st==='arch', src = arch ? (ARCH||ARCH1||[]) : DATA;
+  const arch = f.st==='arch', src = arch ? (ARCH||ARCHX||[]) : DATA;
   // Минск и Минская область — первыми, остальные области по алфавиту
   const rOrd = r => r==='г. Минск' ? 0 : r==='Минская область' ? 1 : 2;
   const regions=[...new Set(list.map(l=>l.region).filter(Boolean))].sort((a,b)=>rOrd(a)-rOrd(b) || a.localeCompare(b,'ru'));
@@ -2270,7 +2280,7 @@ function pageCatalog(sc, params){
   // вернулись с лота кнопкой «Назад» — тот же объём списка и то же место
   const pos = CAT_POS[CUR];
   if(pos && (PREV||'').startsWith('/lot/') && Date.now() - pos.t < 3*3600e3){ show = pos.show; RESTORE_Y = pos.y; }
-  const baseOf = () => { const src = FSTATE.st==='arch' ? (ARCH||ARCH1||[]) : DATA;
+  const baseOf = () => { const src = FSTATE.st==='arch' ? (ARCH||ARCHX||[]) : DATA;
     return sc ? src.filter(l=>inScope(l, sc)) : src; };
   const ct = sc && catTop(sc.top);
   $('#app').innerHTML = `<div class="wrap">
@@ -2370,12 +2380,15 @@ function pageCatalog(sc, params){
     $('#c-lede').textContent = arch
       ? 'Торги, по которым приём заявок завершён или лот снят с площадки. Храним их, даже когда площадка удаляет лот у себя.'
       : 'Лоты с открытым приёмом заявок. Каталог обновляется автоматически.';
-    // архив: сначала свежий (arch.js, 45 дней) — он показывается сразу; весь (arch2.js, ~18 МБ) — в фоне, потом дорисовываем
-    // на том же месте (22.10: раньше каталог архива ждал весь архив, страница «замирала»)
+    // архив: сначала свежий (arch.js, 45 дней) — он показывается сразу; старый — в фоне, только части этого раздела каталога
+    // (27.10), дорисовываем на том же месте по мере загрузки (22.10: раньше каталог архива ждал весь архив, страница «замирала»)
     if(arch && !ARCH1){ $('#tb').innerHTML=''; $('#res').innerHTML = '<div class="skel"></div><div class="skel" style="margin-top:10px"></div>';
       loadArch1().then(()=>{ if($('#fwrap') && FSTATE.st==='arch'){ drawPanel(); render(true); } }); return; }
-    if(arch && !ARCH && !render.full){ render.full = 1;
-      setTimeout(()=>loadArch().then(()=>{ if($('#fwrap') && FSTATE.st==='arch'){ const y = scrollY; drawPanel(); render(true); scrollTo(0, y); } }), 600); }
+    const need = arch ? archKeys(sc).filter(k=>!ARCHP[k]) : [];
+    if(need.length && !render.full){ render.full = 1;
+      let tm = 0; const redraw = () => { if(tm) return; tm = setTimeout(()=>{ tm = 0;   // частей много — дорисовываем не чаще раза в 0,4 с
+        if($('#fwrap') && FSTATE.st==='arch'){ const y = scrollY; drawPanel(); render(true); scrollTo(0, y); } }, 400); };
+      setTimeout(()=>loadArchParts(need, redraw), 300); }
     const base = baseOf(), list = applyFilters(base, FSTATE), nf_ = nFilters(FSTATE);
     // сохранённый поиск: только его новые лоты (SSNEW) или плашка «по вашему поиску N новых»
     let shown = list, nb = '', nwS = null;
@@ -2417,7 +2430,7 @@ function pageCatalog(sc, params){
     if(FSTATE.q && !arch) logMiss(FSTATE.q);
     if(!arch && FSTATE.q){
       // по свежему архиву, если весь ещё не загружен: ради подсказки 2 МБ не грузим
-      const ar = ARCH || ARCH1;
+      const ar = ARCH || ARCHX;
       if(ar){ const n = applyFilters(sc?ar.filter(l=>inScope(l, sc)):ar, {...FSTATE, st:'arch'}).length;
         if(n) hint = `<div class="hint">В архиве ещё <b>${n}</b> ${plural(n,'совпадение','совпадения','совпадений')} - <a href="#" id="to-arch">показать архив</a></div>`; }
       else loadArch1().then(()=>{ if($('#res')) render(); });
@@ -3835,7 +3848,7 @@ const dkey = t => { const d = new Date(t); return d.getFullYear() + '-' + p2(d.g
 let CAL_M = null, CAL_TODAY = '', CAL_USER = false;   // CAL_USER — месяц листали стрелками: не перескакивать на текущий
 function calBy(){
   const by = {}, seen = new Set();
-  for(const l of [...DATA, ...(ARCH||ARCH1||[])]){
+  for(const l of [...DATA, ...(ARCH||ARCHX||[])]){
     if(seen.has(l.id) || l.why==='removed') continue;   // снятые до торгов — торгов не было
     seen.add(l.id);
     (by[dkey(torgAt(l)*1000)] = by[dkey(torgAt(l)*1000)] || []).push(l);
@@ -3847,7 +3860,7 @@ function drawCal(){
   const now = new Date(); CAL_TODAY = dkey(now);
   if(!CAL_M || !CAL_USER) CAL_M = new Date(now.getFullYear(), now.getMonth(), 1);
   const y = CAL_M.getFullYear(), m = CAL_M.getMonth(), by = calBy();
-  // месяц раньше свежего архива — нужен весь (arch2.js)
+  // месяц раньше свежего архива — нужен весь (все части arch-*.js)
   const full = new Date(y, m, 1).getTime() < ARCHN.cut * 1000, got = full ? ARCH : ARCH1 || ARCH;
   if(full && !ARCH) loadArch().then(()=>{ if($('#cal')) drawCal(); });
   const lead = (new Date(y, m, 1).getDay() + 6) % 7, days = new Date(y, m + 1, 0).getDate();
@@ -4301,7 +4314,6 @@ function pageLogin(params){
 /* кабинет */
 const ME_TABS = [['','Обзор'],['fav','Избранное'],['notify','Уведомления'],['searches','Сохранённые поиски'],['calendar','Календарь торгов'],
   ['orders','Заявки на помощь'],['reports','Отчёты'],['stats','Аналитика рынка'],['profile','Профиль']];
-const withArch = () => ARCH ? Promise.resolve() : loadArch();
 async function pageMe(sub, params){
   document.title = 'Личный кабинет' + TSUF;
   if(!UB){ pageLogin(params); return; }
@@ -4328,10 +4340,13 @@ async function pageMe(sub, params){
   }catch(err){ M.innerHTML = `<div class="panel empty">Не получилось загрузить: ${esc(err.message)}</div>`; }
   paint();
 }
-/* лоты кабинета: с сайта (активные и архив), а удалённые из архива — из копии каталога в базе */
+/* лоты кабинета: с сайта (активные и архив), а удалённые из архива — из копии каталога в базе. Архивный — из его пачки
+   подробностей (27.10: раньше грузился весь архив, 20 МБ) */
 async function meLots(ids){
   if(!ids.length) return {};
-  const out = {}; await withArch();
+  const out = {};
+  await Promise.all(ids.filter(id=>!byId(id)).map(id=>{ const pk = crc32(String(id)) % PACKS;
+    return loadDet({ id, pk }).then(d=>{ if(d && d.l) LOT1[id] = Object.assign(d.l, { pk }); }); }));
   ids.forEach(id=>{ const l = byId(id); if(l) out[id] = l; });
   const miss = ids.filter(id=>!out[id]);
   if(miss.length) (await uapi(`lots?id=in.(${miss.map(x=>'"'+x.replace(/"/g,'')+'"').join(',')})&select=id,name,url,platform,section,price,req_to,torg,status,closed,why,location,art,result`))

@@ -466,6 +466,8 @@ arch_cut = now - ARCH_NEW * 86_400
 arch1, arch2 = arch.partition { |l| l['closed'].to_i >= arch_cut }
 archn = arch.group_by { |l| l['section'] }.map { |k, v| [k, v.size] }.to_h.merge('_' => arch.size, 'cut' => arch_cut)
 archn['tree'] = arch.each_with_object(Hash.new(0)) { |l, h| next unless l['sub']; h[l['sub']] += 1; h[l['sub'].split('/').first] += 1 }
+arch_part = ->(l) { (l['sub'] || '_').tr('/', '-') }
+archn['parts'] = arch2.group_by(&arch_part).transform_values(&:size)
 slim = ->(l) { KEEP.each_with_object({}) { |k, h| h[k] = l[k] unless l[k].nil? }.tap { |h| h['np'] = l['pics'].size if (l['pics'] || []).size > 1 } }
 tpl = File.read(File.join(__dir__, 'site.tpl.html'), encoding: 'UTF-8')
 SEO_DEF = { 'seo_title' => 'Аукционы имущества в Беларуси: все торги в одном каталоге | МониТорг', 'seo_brand' => 'МониТорг',
@@ -528,6 +530,10 @@ srch2 = srch.select { |id, _| old[id] }
 srch.reject! { |id, _| old[id] }
 File.write(File.join(OUT, 'srch.js'), "__srch(#{JSON.generate(srch)});")
 File.write(File.join(OUT, 'arch2.js'), "__arch2(#{JSON.generate(arch2.map(&slim))},#{JSON.generate(srch2)});")
+Dir[File.join(OUT, 'arch-*.js')].each { |f| File.delete(f) }
+arch2.group_by(&arch_part).each do |k, ls|
+  File.write(File.join(OUT, "arch-#{k}.js"), "__arch2p(#{JSON.generate(k)},#{JSON.generate(ls.map(&slim))},#{JSON.generate(srch2.slice(*ls.map { |l| l['id'] }))});")
+end
 File.write(File.join(OUT, '.nojekyll'), '')
 adm = File.read(File.join(__dir__, 'admin.html'), encoding: 'UTF-8')
 FileUtils.cp(File.join(__dir__, 'stats.js'), File.join(OUT, 'stats.js'))
