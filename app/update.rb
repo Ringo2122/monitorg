@@ -177,6 +177,9 @@ bav_mg = []
 stat = Hash.new(0)
 pstat = Hash.new { |h, k| h[k] = Hash.new(0) }
 terms_left = TERMS_CAP
+PICS_DAYS = 2
+PICS_RUN = 120
+pics_left = Hash.new(PICS_RUN)
 new_left = NEW_CAP.dup
 closed = File.exist?(CLOSED_FILE) ? (JSON.parse(File.read(CLOSED_FILE, encoding: 'UTF-8')) rescue {}) : {}
 closed.reject! { |_, t| t.to_i < now - 30 * 86_400 }
@@ -256,6 +259,15 @@ end
               upd['ph_at'] = now
               upd['pics'] = d3['photos'] if d3 && (d3['photos'] || []).any?
               mx.synchronize { stat[ok ? 'фото докачано' : 'фото не нашлось'] += 1 }
+            elsif old['photo'] && now - old['pics_at'].to_i > PICS_DAYS * 86_400 &&
+                  !%w[minskestate.by mgcn.by torgi.gov.by].include?(c['platform']) && mx.synchronize { (pics_left[c['platform']] -= 1) >= 0 }
+              d5 = fetch_detail(c)
+              if d5
+                ph = d5['photos'] || []
+                upd['pics'] = ph if ph.any? && ph != old['pics']
+                upd['pics_at'] = now
+                mx.synchronize { stat['галерея обновлена'] += 1 } if upd['pics']
+              end
             end
             if c['platform'] == 'konfiskat.by' && old['location'].to_s.empty? && old['kf_try'].to_i < 3
               d4 = fetch_detail(c)
