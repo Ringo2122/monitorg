@@ -1491,7 +1491,7 @@ document.addEventListener('click', e => {
   const send = (msg, src) => { try{
     const m = String(msg || '').slice(0, 500), k = m.slice(0, 160);
     if(!m || sent.has(k) || sent.size >= 5 || !(CFG.sb && CFG.sb.url) || /^Script error\.?$/.test(m) || /extension:\/\//.test(src || '')
-       || /Googlebot|Google-Read-Aloud|bingbot|YandexBot|crawler|spider/i.test(navigator.userAgent)) return;
+       || /Googlebot|GoogleOther|Google-|bingbot|YandexBot|crawler|spider/i.test(navigator.userAgent)) return;   // 27.10: GoogleOther — тоже робот Google
     sent.add(k);
     fetch((CFG.sb && CFG.sb.url) + '/rest/v1/rpc/report_error', { method:'POST', keepalive:true,
       headers:{ apikey:CFG.sb.key, Authorization:'Bearer ' + CFG.sb.key, 'Content-Type':'application/json' },
@@ -3000,6 +3000,9 @@ function similarLots(l){
 }
 function pageLot(id){
   let l = byId(id);
+  // 27.10: роботу поисковика — готовая страница лота с сервера, без загрузки архива: архив ~20 МБ, робот Google
+  // читает только первые 15 МБ файла — архив обрывался с ошибкой, а на экране оставалась заглушка вместо лота
+  if(!l && $('#app .lothead') && /bot|crawler|spider|GoogleOther|Google-|Lighthouse/i.test(navigator.userAgent)) return;
   if(!l && !ARCH){   // архивный лот — из его пачки; нет там (старая сборка) — свежий архив, потом весь
     $('#app').innerHTML = '<div class="wrap"><div class="skel" style="height:320px"></div></div>';
     const here = () => CUR==='/lot/'+encodeURIComponent(id);
