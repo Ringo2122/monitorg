@@ -72,6 +72,14 @@ module Obj
     nil
   end
 
+  STREET = /(?:\A|[\s,])(?:ул|улица|пер|переулок|пр-т|пр-кт|пр(?=\.)|просп|проспект|бул|б-р|бульвар|тракт|ш|шоссе|пл|площадь|наб|набережная|проезд|туп|тупик|мкр|микрорайон)\.?\s*([^,]{3,40}?)\s*,?\s*(?:д\.?|дом)?\s*(\d+[а-я]?(?:\/\d+)?)(?![\d.])/i
+  def addr(loc)
+    s = loc.to_s.downcase.tr('ё', 'е')
+    m = s.match(STREET) or return nil
+    word = m[1].scan(/[а-яa-z0-9]+/).max_by(&:size)
+    word && word.size >= 3 ? "#{word}|#{m[2]}" : nil
+  end
+
   def town_name(key)
     key && key.split('|').last.split('-').map(&:capitalize).join('-')
   end

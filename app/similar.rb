@@ -23,7 +23,7 @@ module Similar
       o['city'] = Obj.city(l['location'], l['name'])
       o['ids'].reject! { |x| x.start_with?('kad:') } unless o['kind'] == 'Земельные участки'
       nm = Obj.low(l['name']).gsub(/[^a-zа-я0-9]/, '')
-      o['nm'] = "#{o['city']}|#{nm}" if o['city'] && nm.size >= 20
+      o['nm'] = "#{o['city']}|#{nm}|#{Obj.addr(l['location'])}" if o['city'] && nm.size >= 20
     elsif VEH.include?(l['section'])
       o['veh'] = Obj.vehicle(l, rows)
     end
