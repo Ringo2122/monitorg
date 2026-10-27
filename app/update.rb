@@ -519,8 +519,15 @@ STDERR.puts "итоги торгов: проверяю #{due.size}" unless due.e
 RES_THREADS = { 'ipmtorgi.by' => 3, 'e-auction.by' => 2 }.freeze
 due.group_by { |l| l['platform'] }.flat_map { |plat, ls| ls.each_slice((ls.size / (RES_THREADS[plat] || 1).to_f).ceil).map { |part| [plat, part] } }.map do |plat, ls|
   Thread.new do
-    ls.each do |l|
+    dead = 0
+    ls.each_with_index do |l, i|
+      if dead >= 2
+        STDERR.puts "итоги: #{plat} не отвечает — пропускаю #{ls.size - i}"
+        break
+      end
+      t1 = Time.now
       r, extra = fetch_result(l)
+      dead = r.nil? && Time.now - t1 > 60 ? dead + 1 : 0
       mx.synchronize do
         l.merge!(extra)
         tries = (l['result'] || {})['tries'].to_i + 1
