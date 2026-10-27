@@ -77,8 +77,8 @@ module Store
     raw = dst + '.raw'
     urls.compact.uniq.each do |u|
       next unless u.to_s =~ %r{\Ahttps?://}i
-      system('curl', '-sS', '-L', '--proto', '=http,https', '--proto-redir', '=http,https', '--max-filesize', '15000000',
-             '-m', '40', '-A', ua, '-o', raw, u, out: File::NULL, err: File::NULL)
+      curl = defined?(Src) && Src.respond_to?(:curl_for) ? Src.curl_for(u) : %w[curl -sS -L --proto =http,https --proto-redir =http,https]
+      system(*curl, '--max-filesize', '15000000', '-m', '40', '-A', ua, '-o', raw, u, out: File::NULL, err: File::NULL)
       next unless File.exist?(raw) && File.size(raw) > 1000 && !nophoto?(raw)
       ok = shrink(raw, dst, w, q)
       File.delete(raw) if File.exist?(raw)
