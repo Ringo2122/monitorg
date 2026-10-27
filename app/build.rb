@@ -529,7 +529,7 @@ old = arch2.map { |l| [l['id'], true] }.to_h
 srch2 = srch.select { |id, _| old[id] }
 srch.reject! { |id, _| old[id] }
 File.write(File.join(OUT, 'srch.js'), "__srch(#{JSON.generate(srch)});")
-File.write(File.join(OUT, 'arch2.js'), "__arch2(#{JSON.generate(arch2.map(&slim))},#{JSON.generate(srch2)});")
+FileUtils.rm_f(File.join(OUT, 'arch2.js'))
 Dir[File.join(OUT, 'arch-*.js')].each { |f| File.delete(f) }
 arch2.group_by(&arch_part).each do |k, ls|
   File.write(File.join(OUT, "arch-#{k}.js"), "__arch2p(#{JSON.generate(k)},#{JSON.generate(ls.map(&slim))},#{JSON.generate(srch2.slice(*ls.map { |l| l['id'] }))});")
@@ -612,5 +612,5 @@ by = Hash.new(0)
 active.each { |l| by[l['section']] += 1 }
 kb = ->(f) { (File.size(File.join(OUT, f)) / 1024.0).round }
 puts "активных #{active.size} (#{by.map { |k, v| "#{k} #{v}" }.join(', ')}), в архиве #{arch.size}"
-puts "index.html #{kb.('index.html')} КБ, arch.js #{kb.('arch.js')} КБ, arch2.js #{kb.('arch2.js')} КБ, srch.js #{kb.('srch.js')} КБ, пачек #{packs}, " \
+puts "index.html #{kb.('index.html')} КБ, arch.js #{kb.('arch.js')} КБ, arch-*.js #{Dir[File.join(OUT, 'arch-*.js')].sum { |f| File.size(f) } / 1024} КБ, srch.js #{kb.('srch.js')} КБ, пачек #{packs}, " \
      "фото #{order.count { |l| l['photo'] }}, ориентиров #{active.count { |l| l['market'] }}"
