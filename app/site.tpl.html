@@ -14,6 +14,9 @@
 /* Общий стиль из админки («Главная страница» → «Общий стиль»): фирменный цвет, скругление углов, шрифт заголовков.
    Стоит до основных стилей, поэтому селекторы сильнее (html:root) — иначе основные перекрыли бы. Тот же код — в предпросмотре админки */
 window.THEME = __THEME__;
+// 27.10: пока приложение не нарисовало страницу, людям — заглушка загрузки, а не серверная версия главной для поисковиков
+// (она мигала или висела несколько секунд). Приложение не загрузилось за 15 с — показываем серверную версию.
+document.documentElement.classList.add('app-js'); setTimeout(()=>document.documentElement.classList.remove('app-js'), 15000);
 const HEAD_FONTS = { 'Onest':'Onest', 'Golos Text':'Golos+Text', 'Manrope':'Manrope', 'Montserrat':'Montserrat', 'Unbounded':'Unbounded', 'PT Serif':'PT+Serif' };
 function themeCss(t){
   t = t || {}; let css = '';
@@ -663,6 +666,9 @@ applyTheme(window.THEME);
   .skel{height:54px;border-radius:12px;background:linear-gradient(90deg,var(--card) 30%,var(--bg) 50%,var(--card) 70%);
     background-size:220% 100%;animation:sk 1.2s linear infinite;border:1px solid var(--hair)}
   @keyframes sk{to{background-position:-220% 0}}
+  .app-js .home-seo > *{display:none}
+  .app-js .home-seo::before{content:"";display:block;height:420px;margin:24px 0 40px;border-radius:16px;border:1px solid var(--hair);
+    background:linear-gradient(90deg,var(--card) 30%,var(--bg) 50%,var(--card) 70%);background-size:220% 100%;animation:sk 1.2s linear infinite}
 
   /* ── значки на карточках ── */
   .lot .marks{position:absolute;left:0;right:0;bottom:0;padding:44px 92px 11px 12px;display:flex;flex-wrap:wrap;gap:4px 14px;
