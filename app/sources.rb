@@ -337,9 +337,12 @@ module Src
       end
       next if rcls.to_s.include?('d-none') || cur['hidden']
       k = txt(k1 || k2)
-      v = txt(v1 || v2)
+      raw = (v1 || v2).to_s
+      old = raw[%r{<span[^>]*class="[^"]*crossed[^"]*"[^>]*>(.*?)</span>}m, 1]
+      v = txt(old ? raw.sub(%r{<span[^>]*class="[^"]*crossed[^"]*"[^>]*>.*?</span>}m, '') : raw)
       next if k.empty? || v.empty? || k =~ /Допущено участников|Текущая ставка/
       cur['rows'] << [k, v] unless cur['rows'].include?([k, v])
+      cur['rows'] << ["#{k} на прошлых торгах", txt(old)] if old && !txt(old).empty?
     end
     secs.each { |s| s.delete('hidden') }
     secs.reject! { |s| s['rows'].empty? }

@@ -355,7 +355,14 @@ def unent(s)
   end
   s
 end
-DETAILS = ->(k) { Store.details(k).each { |sec| (sec['rows'] || []).each { |r| r[1] = unent(r[1]); r[1] = r[1].gsub(/,(?:\s*,)+/, ',') if r[1].is_a?(String) } } }
+TWO_PRICES = /\A\s*([\d\s ]+[.,]\d{2})\s*(бел\.?\s*руб\.?|BYN)\s+([\d\s ]+[.,]\d{2})\s*(бел\.?\s*руб\.?|BYN)?\s*\z/i
+split_price = lambda do |rows|
+  i = rows.index { |k, v| k == 'Начальная цена' && v.to_s =~ TWO_PRICES } or return
+  m = rows[i][1].match(TWO_PRICES)
+  rows[i] = ['Начальная цена', "#{m[3].strip} #{(m[4] || m[2]).strip}"]
+  rows.insert(i + 1, ['Начальная цена на прошлых торгах', "#{m[1].strip} #{m[2].strip}"]) unless rows.any? { |k, _| k == 'Начальная цена на прошлых торгах' }
+end
+DETAILS = ->(k) { Store.details(k).each { |sec| (sec['rows'] || []).each { |r| r[1] = unent(r[1]); r[1] = r[1].gsub(/,(?:\s*,)+/, ',') if r[1].is_a?(String) }; split_price.(sec['rows'] || []) } }
 
 Pages.prepare(active: active, arch: arch, details: DETAILS, now: now)
 order = active.group_by { |l| l['section'] }.values.flatten + arch
