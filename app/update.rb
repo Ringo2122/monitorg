@@ -13,7 +13,7 @@ require_relative 'bav'
 require 'fileutils'
 
 RETAIN_DAYS = (ENV['RETAIN_DAYS'] || 548).to_i
-MAXV = 800
+MAXV = 20_000
 WORKERS = { 'e-auction.by' => 3, 'ipmtorgi.by' => 2, 'beltorgi.by' => 3, 'konfiskat.by' => 1, 'belauction.by' => 1,
             'minskestate.by' => 1, 'mgcn.by' => 1, 'auction24.by' => 1, 'lotsale.by' => 1, 'butb.by' => 1, 'gostorg.by' => 2,
             'bankrot-torg.by' => 1, 'specrealization.by' => 1, 'torgi.gov.by' => 1, 'etpvit.by' => 1, 'expert-torgi.by' => 1, 'realtorgi.by' => 1,
@@ -180,6 +180,8 @@ terms_left = TERMS_CAP
 PICS_DAYS = 2
 PICS_RUN = 120
 pics_left = Hash.new(PICS_RUN)
+FULL_RUN = 100
+full_left = Hash.new(FULL_RUN)
 new_left = NEW_CAP.dup
 closed = File.exist?(CLOSED_FILE) ? (JSON.parse(File.read(CLOSED_FILE, encoding: 'UTF-8')) rescue {}) : {}
 closed.reject! { |_, t| t.to_i < now - 30 * 86_400 }
@@ -267,6 +269,16 @@ end
                 upd['pics'] = ph if ph.any? && ph != old['pics']
                 upd['pics_at'] = now
                 mx.synchronize { stat['галерея обновлена'] += 1 } if upd['pics']
+              end
+            end
+            if !old['det_full'] && c['platform'] != 'mgcn.by'
+              cut = Store.details(c['key']).any? { |sx| (sx['rows'] || []).any? { |_, v| v.to_s.end_with?('…') && v.to_s.size >= 600 } }
+              if !cut
+                upd['det_full'] = true
+              elsif mx.synchronize { (full_left[c['platform']] -= 1) >= 0 } && (d6 = fetch_detail(c)) && (d6['details'] || []).any?
+                Store.save_details(c['key'], trim(d6['details']))
+                upd['det_full'] = true
+                mx.synchronize { stat['подробности дочитаны целиком'] += 1 }
               end
             end
             if c['platform'] == 'konfiskat.by' && old['location'].to_s.empty? && old['kf_try'].to_i < 3
