@@ -31,7 +31,7 @@ module Src
 
   CURL = %w[curl -sS -L --proto =http,https --proto-redir =http,https --max-filesize 20000000].freeze
 
-  KF_HOSTS = %r{\Ahttps?://(www\.)?((torgi)?konfiskat|expert-torgi|auction24|belauction)\.by(/|:|\z)}i
+  KF_HOSTS = %r{\Ahttps?://(www\.)?((torgi)?konfiskat|expert-torgi|auction24|belauction|gostorg)\.by(/|:|\z)}i
 
   ME_CA = %r{\Ahttps?://(www\.)?minskestate\.by(/|:|\z)}i
   def ca_bundle
