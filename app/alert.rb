@@ -152,6 +152,9 @@ file_broken = lambda do |e|
   site_html[home].include?(File.basename(path))
 end
 files = errs.select(&file_err).uniq { |e| e['msg'] }.reject { |e| fsent[e['msg']] }.select { |e| file_broken.(e) }.map { |e| e['msg'] }
+BOT_UA = /bot\b|Googlebot|GoogleOther|Google-|bingbot|YandexBot|crawler|spider|Lighthouse|HeadlessChrome/i
+last_err = errs.last && errs.last['id']
+errs.reject! { |e| e['ua'].to_s =~ BOT_UA }
 shown = errs.reject(&file_err) + errs.select { |e| files.include?(e['msg']) }
 client = shown.group_by { |e| e['msg'] }.first(6).map do |msg, es|
   e = es.first
@@ -185,7 +188,7 @@ found.each do |p|
   end
 end
 gone.each { |a| Sb.patch('alerts', "fp=eq.#{URI.encode_www_form_component(a['fp'])}", { 'open' => false, 'resolved_at' => t }) }
-if errs.any? && (ok || parts.empty?)
+if last_err && (ok || parts.empty?)
   fsent.merge!(files.to_h { |m| [m, t] }) if ok
-  Sb.upsert('settings', [{ 'k' => 'monitor', 'v' => { 'client_err_id' => errs.last['id'], 'at' => t, 'files' => fsent } }], 'k')
+  Sb.upsert('settings', [{ 'k' => 'monitor', 'v' => { 'client_err_id' => last_err, 'at' => t, 'files' => fsent } }], 'k')
 end
