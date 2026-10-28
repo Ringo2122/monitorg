@@ -192,7 +192,8 @@ module Pages
     li = [['Главная', '/']] + parts
     vis = li.each_with_index.map { |(t, u), i| i == li.size - 1 || u.nil? ? h(t) : %(<a href="#{u}">#{h(t)}</a>) }.join(' → ')
     ld = { '@context' => 'https://schema.org', '@type' => 'BreadcrumbList',
-           'itemListElement' => li.each_with_index.map { |(t, u), i| { '@type' => 'ListItem', 'position' => i + 1, 'name' => t }.merge(u ? { 'item' => SITE + u } : {}) } }
+           'itemListElement' => li.each_with_index.select { |(_, u), i| u || i == li.size - 1 }
+                                  .each_with_index.map { |((t, u), _), j| { '@type' => 'ListItem', 'position' => j + 1, 'name' => t }.merge(u ? { 'item' => SITE + u } : {}) } }
     [%(<div class="crumbs">#{vis}</div>), ld]
   end
 
