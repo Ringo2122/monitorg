@@ -1523,7 +1523,7 @@ const SECTIONS = [
 /* текст из админки, если там заполнен; иначе — текст по умолчанию */
 const TX = (k, d) => { const v = (CFG.texts||{})[k]; return v && String(v).trim() ? String(v) : d; };
 // название сайта во вкладке и окончание заголовков страниц («Все лоты - МониТорг») — из админки (тексты seo_*)
-const SEO_TITLE = TX('seo_title', 'Аукционы имущества в Беларуси: все торги в одном каталоге | МониТорг'), TSUF = ' - ' + TX('seo_brand', 'МониТорг');
+const SEO_TITLE = TX('seo_title', 'МониТорг | Аукционы имущества в Беларуси: все торги в одном каталоге'), TSUF = ' - ' + TX('seo_brand', 'МониТорг');
 const numv = v => v===''||v==null||isNaN(+v) ? null : +v;
 const $ = s => document.querySelector(s);
 const esc = s => String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
