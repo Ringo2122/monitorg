@@ -2039,7 +2039,8 @@ function dd(sel){
     ul.style.top = (up ? r.top - h - 4 : r.bottom + 4) + 'px'; };
   // подсветка пункта; прокручиваем только сам список (scrollIntoView двигал бы страницу — и список закрылся бы)
   // мышью — только подсветка: иначе пункт у нижнего края подкручивает список сам (решение Артёма 09.10)
-  const hl = (i, noScroll) => { act = i; [...ul.children].forEach((li, k) => li.classList.toggle('act', k === i));
+  // 30.10: список уже закрыт, но ещё 0,12 с исчезает на экране — мышь над ним не должна ничего подсвечивать
+  const hl = (i, noScroll) => { if(!ul) return; act = i; [...ul.children].forEach((li, k) => li.classList.toggle('act', k === i));
     const li = ul.children[i]; if(!li || noScroll) return;
     if(li.offsetTop < ul.scrollTop) ul.scrollTop = li.offsetTop - 5;
     else if(li.offsetTop + li.offsetHeight > ul.scrollTop + ul.clientHeight) ul.scrollTop = li.offsetTop + li.offsetHeight - ul.clientHeight + 5; };
@@ -2077,7 +2078,7 @@ function mdd(btn, items, sel, onChange, o){
   const label = () => { const a = [...sel];
     btn.innerHTML = `<span>${a.length ? (a.length <= 2 ? a.map(esc).join(', ') : a.length + ' ' + plural(a.length, ...o.w)) : o.all}</span>`
       + '<svg viewBox="0 0 12 12"><path d="M2.5 4.5 6 8l3.5-3.5"/></svg>'; };
-  const draw = () => { ul.innerHTML = `<li role="option" data-p=""${sel.size ? '' : ' class="sel" aria-selected="true"'}>${o.all}</li>`
+  const draw = () => { if(!ul) return; ul.innerHTML = `<li role="option" data-p=""${sel.size ? '' : ' class="sel" aria-selected="true"'}>${o.all}</li>`
     + items.map(([p, n]) => `<li role="option" data-p="${esc(p)}" class="${o.dot ? pslug(p) : ''}${sel.has(p) ? ' sel' : ''}" aria-selected="${sel.has(p)}">${o.dot ? '<i class="pdot"></i>' : ''}<span>${esc(p)}</span><small>${nf(n)}</small></li>`).join(''); };
   const place = () => { const r = btn.getBoundingClientRect(), h = ul.offsetHeight, below = innerHeight - r.bottom - 8;
     const up = below < h && r.top - 8 > below;
@@ -2141,7 +2142,7 @@ function pickMany(btn, opts, sel, onChange, ph){
   const label = () => { const a = opts.filter(o=>sel.has(o));
     btn.innerHTML = `<span>${a.length ? a.map(esc).join('; ') : esc(ph)}</span><svg viewBox="0 0 12 12"><path d="M2.5 4.5 6 8l3.5-3.5"/></svg>`;
     btn.classList.toggle('ph', !a.length); };
-  const draw = () => { ul.innerHTML = opts.map((o, i) => `<li role="option" data-i="${i}"${sel.has(o) ? ' class="sel" aria-selected="true"' : ' aria-selected="false"'}>${esc(o)}</li>`).join(''); };
+  const draw = () => { if(!ul) return; ul.innerHTML = opts.map((o, i) => `<li role="option" data-i="${i}"${sel.has(o) ? ' class="sel" aria-selected="true"' : ' aria-selected="false"'}>${esc(o)}</li>`).join(''); };
   const place = () => { const r = btn.getBoundingClientRect(), h = ul.offsetHeight, below = innerHeight - r.bottom - 8;
     const up = below < h && r.top - 8 > below;
     ul.classList.toggle('up', up);
