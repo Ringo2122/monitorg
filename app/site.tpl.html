@@ -4,7 +4,7 @@
 <meta name="robots" content="noindex, nofollow">
 <!-- Политика безопасности: скрипты, стили и шрифты — только свои (15.10: шрифты и карта Leaflet — с нашего сайта, не с Google и cdnjs:
      браузер посетителя не отдаёт IP-адрес серверам в США — политика обработки ПД), запросы — только в базу Supabase; фото площадок — с их сайтов -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://mc.yandex.ru https://mc.yandex.by https://mc.yandex.com https://yastatic.net https://*.googletagmanager.com; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob: https:; connect-src 'self' https://*.supabase.co https://mc.yandex.ru https://mc.yandex.by https://mc.yandex.com https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com; frame-src blob: https://mc.yandex.ru https://mc.yandex.by https://mc.yandex.com; child-src blob: https://mc.yandex.ru https://mc.yandex.by https://mc.yandex.com; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://mc.yandex.ru https://mc.yandex.by https://mc.yandex.com https://yastatic.net https://*.googletagmanager.com https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob: https:; connect-src 'self' https://*.supabase.co https://mc.yandex.ru https://mc.yandex.by https://mc.yandex.com https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com; frame-src blob: https://mc.yandex.ru https://mc.yandex.by https://mc.yandex.com https://challenges.cloudflare.com; child-src blob: https://mc.yandex.ru https://mc.yandex.by https://mc.yandex.com https://challenges.cloudflare.com; object-src 'none'; base-uri 'none'; form-action 'self'">
 <title>__TITLE__</title>
 <meta name="description" content="__DESC__">
 <meta property="og:type" content="website"><meta property="og:site_name" content="__BRAND__"><meta property="og:title" content="__TITLE__"><meta property="og:description" content="__SHORT__">
@@ -2120,6 +2120,20 @@ function formMeta(form){
   if(form) form.addEventListener('input', e => { if(e.isTrusted) ti++; }, true);
   return () => ({ ms: Date.now() - t0, ti, wd: !!navigator.webdriver, page: location.pathname.slice(0, 200) });
 }
+/* 30.10: невидимая проверка Cloudflare Turnstile в форме заявки: браузер получает от Cloudflare одноразовый ответ, сервер
+   (submit_lead) сверяет его с Cloudflare. Не прошла или не загрузилась — заявка всё равно принимается, но с пометкой ⚠ */
+const CF_KEY = '0x4AAAAAAFsnqfc7hlyu3Mdu';
+let cfLib;
+const cfLoad = () => cfLib || (cfLib = new Promise((ok, no) => { const s = document.createElement('script');
+  s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit'; s.async = true; s.onload = ok; s.onerror = no;
+  document.head.appendChild(s); }));
+function cfCheck(box){
+  let tok = null, id = null;
+  if(box) cfLoad().then(() => { id = turnstile.render(box, { sitekey: CF_KEY, callback: t => { tok = t; },
+    'expired-callback': () => { tok = null; }, 'error-callback': () => { tok = null; } }); }).catch(() => {});
+  // ответ одноразовый: отдали — сразу просим новый (на случай повторной отправки после ошибки)
+  return () => { const t = tok; tok = null; if(id != null) try{ turnstile.reset(id); }catch(e){} return t; };
+}
 function phoneMask(inp){
   if(!inp) return;
   const CODES = ['29','25','33','44'];
@@ -3199,6 +3213,7 @@ function pageHelp(params){
           <div class="fg"><label for="h-svc">Чем можем помочь</label><select id="h-svc"><option value="">Пока не знаю, что нужно</option>
             ${svcList().map(([,t])=>`<option${t===svc?' selected':''}>${esc(t)}</option>`).join('')}</select></div>
           <input class="hp" id="h-web" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+          <div id="h-cf"></div>
           <div class="ferr" id="h-err"></div>
           <button class="btn pri" type="submit" style="width:100%">Отправить заявку</button>
           <p class="note">Нажимая «Отправить заявку», вы соглашаетесь на обработку персональных данных в соответствии с <a href="#/privacy" target="_blank" rel="noopener">политикой конфиденциальности</a>.</p>
@@ -3207,7 +3222,7 @@ function pageHelp(params){
     </div></div>`;
   dd($('#h-svc'));
   phoneMask($('#h-phone'));
-  const fmeta = formMeta($('#hf'));
+  const fmeta = formMeta($('#hf')), fcf = cfCheck($('#h-cf'));
   $('#hf').addEventListener('submit', e=>{
     e.preventDefault();
     const name = $('#h-name').value.trim(), phone = $('#h-phone').value.replace(/\D/g,''), mail = $('#h-mail').value.trim();
@@ -3225,7 +3240,7 @@ function pageHelp(params){
     (async () => fetch(CFG.sb.url + '/rest/v1/rpc/submit_lead', { method:'POST',
       headers:Object.assign({ apikey: CFG.sb.key, 'Content-Type':'application/json' }, await uhdr()),
       body: JSON.stringify({ p_name:name, p_phone:ph, p_email:mail||null, p_lot:lotv||null, p_service:$('#h-svc').value||null,
-        p_lot_name:lotRec?lotRec.name:null, p_lot_id:lotRec?lotRec.id:null, p_meta:fmeta() }) }))()
+        p_lot_name:lotRec?lotRec.name:null, p_lot_id:lotRec?lotRec.id:null, p_meta:Object.assign(fmeta(), { cf: fcf() }) }) }))()
       .then(r => r.ok ? done() : r.json().then(j => { throw new Error(j.message || 'ошибка'); }))
       .catch(e => { btn.disabled = false; btn.textContent = 'Отправить заявку';
         $('#h-err').textContent = 'Не удалось отправить: ' + (e.message||'нет связи') + '. Попробуйте ещё раз.'; });
