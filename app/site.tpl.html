@@ -3019,6 +3019,11 @@ function similarLots(l){
   return DATA.filter(x=>top(x)===top(l) && x.id!==l.id).map(x=>[score(x), x]).sort((a,b)=>b[0]-a[0] || a[1].req_to-b[1].req_to)
     .slice(0, 4).map(a=>a[1]);
 }
+// открыта ли страница этого лота: CUR бывает и с русскими буквами как есть, и закодированный (30.10: у etpvit в номере «Г»,
+// «Б» — «ev-2026.Г.002.00129.1»; сравнение только с закодированным не совпадало — страница застревала на заглушке,
+// у активных лотов не дорисовывались подробности, галерея и калькулятор)
+const onLot = id => { const a = '/lot/' + id, b = '/lot/' + encodeURIComponent(id); if(CUR === a || CUR === b) return true;
+  try{ return decodeURIComponent(CUR) === a; }catch(e){ return false; } };
 function pageLot(id){
   let l = byId(id);
   // 27.10: роботу поисковика — готовая страница лота с сервера, без загрузки архива: архив ~20 МБ, робот Google
@@ -3026,7 +3031,7 @@ function pageLot(id){
   if(!l && $('#app .lothead') && /bot|crawler|spider|GoogleOther|Google-|Lighthouse/i.test(navigator.userAgent)) return;
   if(!l && !ARCH){   // архивный лот — из его пачки; нет там (старая сборка) — свежий архив, потом весь
     $('#app').innerHTML = '<div class="wrap"><div class="skel" style="height:320px"></div></div>';
-    const here = () => CUR==='/lot/'+encodeURIComponent(id);
+    const here = () => onLot(id);
     const pk = crc32(String(id)) % PACKS;
     loadDet({ id, pk }).then(d=>{
       if(d && d.l) LOT1[id] = Object.assign(d.l, { pk });
@@ -3099,19 +3104,19 @@ function pageLot(id){
   bindLotUser(l);
   bindLotReport(l);
   loadDet(l).then(det=>{
-    if(CUR!=='/lot/'+encodeURIComponent(id)) return;
+    if(!onLot(id)) return;
     // лота нет в пачке подробностей — страница устарела (сайт пересобрали, браузер держит старую): перезагружаемся один раз
     try{ if(!DET[l.id]){ if(!sessionStorage.getItem('det-reload')){ sessionStorage.setItem('det-reload', '1'); location.reload(); return; } }
          else sessionStorage.removeItem('det-reload'); }catch(e){}
     // «Право аренды»: вместо калькулятора покупки — расчёт аренды по ставке из извещения
     if(!arch) l.section==='arenda' ? rentBlock(l, det.r) : calcBlock(l, det);
     // все фото карточки площадки
-    if(det.p && det.p.length && !GAL_OFF.includes(l.platform)){ const pics = det.p.slice(), draw = () => { if(CUR!=='/lot/'+encodeURIComponent(id)) return; $('.gal').innerHTML = galleryBlock(l, pics); bindGallery(l, pics); };
+    if(det.p && det.p.length && !GAL_OFF.includes(l.platform)){ const pics = det.p.slice(), draw = () => { if(!onLot(id)) return; $('.gal').innerHTML = galleryBlock(l, pics); bindGallery(l, pics); };
       // площадки удаляют и перезаливают фото (14.10, konfiskat kf-511571: 17 из 18 пропадали на глазах после торгов; 27.10,
       // ipm-6bea565a: у активного лота ссылка стала заглушкой) — сначала тихо проверяем первые два; не открылись — оставляем
       // нашу копию главного фото (у архива — с пометкой)
       if(l.photo) Promise.any(pics.slice(0, 2).map(gload)).then(draw, () => { const g = $('.gal');
-        if(arch && g && CUR==='/lot/'+encodeURIComponent(id)) g.insertAdjacentHTML('beforeend', `<p class="gv-src">Фото из архива МониТорг</p>`); });
+        if(arch && g && onLot(id)) g.insertAdjacentHTML('beforeend', `<p class="gv-src">Фото из архива МониТорг</p>`); });
       else draw(); }
     // порядок под карточкой (15.10, Артём): история объекта, сведения о лоте, похожие торги, калькулятор, карта (только у активных)
     $('#xhist').innerHTML = det.h ? histBlock(l, det.h) : '';
