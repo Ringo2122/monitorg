@@ -30,6 +30,18 @@ jobs:
         with:
           sparse-checkout: app     # память робота с фото не нужна — только скрипты
 
+      - name: Код робота
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: Ringo2122/monitorg-src
+          ssh-key: ${{ secrets.SRC_KEY }}
+          path: _src
+          sparse-checkout: |
+            app
+            tools
+      - name: Код робота на место
+        run: cp -R _src/app _src/tools . && rm -rf _src
+
       - uses: ruby/setup-ruby@14594264cd68ce8a2345dd349bc3d138a4ef85c8 # v1
         with:
           ruby-version: '3.2'
@@ -74,6 +86,18 @@ jobs:
         with:
           ref: main
 
+      - name: Код робота
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: Ringo2122/monitorg-src
+          ssh-key: ${{ secrets.SRC_KEY }}
+          path: _src
+          sparse-checkout: |
+            app
+            tools
+      - name: Код робота на место
+        run: cp -R _src/app _src/tools . && rm -rf _src
+
       - uses: ruby/setup-ruby@14594264cd68ce8a2345dd349bc3d138a4ef85c8 # v1
         with:
           ruby-version: '3.2'
@@ -109,7 +133,7 @@ jobs:
           git config user.email "monitorg-bot@users.noreply.github.com"
           git add -A data
           git commit -q -m "данные: $(date '+%d.%m.%Y %H:%M')" || echo "без изменений"
-          git push || (git pull --rebase -q && git push)
+          git push || (git pull --rebase --autostash -q && git push)
 
       - name: Сборка сайта
         run: ruby app/build.rb
