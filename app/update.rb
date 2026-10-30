@@ -269,6 +269,16 @@ end
                 upd['pics'] = ph if ph.any? && ph != old['pics']
                 upd['pics_at'] = now
                 mx.synchronize { stat['галерея обновлена'] += 1 } if upd['pics']
+                unless %w[konfiskat.by e-auction.by lotsale.by iintorgi.by].include?(c['platform'])
+                  nt = d5['torg'] if d5['torg'].to_i > now && d5['torg'] != old['torg']
+                  nr = d5['req_to'] if d5['req_to'].to_i > now && d5['req_to'] != old['req_to']
+                  if nt || nr
+                    upd['torg'] = nt if nt
+                    upd['req_to'] = nr if nr
+                    Store.save_details(c['key'], trim(d5['details'])) if (d5['details'] || []).any?
+                    mx.synchronize { stat['даты торгов уточнены'] += 1 }
+                  end
+                end
               end
             end
             if !old['det_full'] && c['platform'] != 'mgcn.by'
