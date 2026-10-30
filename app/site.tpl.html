@@ -3022,8 +3022,9 @@ function similarLots(l){
 // открыта ли страница этого лота: CUR бывает и с русскими буквами как есть, и закодированный (30.10: у etpvit в номере «Г»,
 // «Б» — «ev-2026.Г.002.00129.1»; сравнение только с закодированным не совпадало — страница застревала на заглушке,
 // у активных лотов не дорисовывались подробности, галерея и калькулятор)
-const onLot = id => { const a = '/lot/' + id, b = '/lot/' + encodeURIComponent(id); if(CUR === a || CUR === b) return true;
-  try{ return decodeURIComponent(CUR) === a; }catch(e){ return false; } };
+// хвост адреса (?srsltid=… — его дописывает Google к ссылкам на товары) не в счёт
+const onLot = id => { const c = String(CUR || '').split('?')[0], a = '/lot/' + id, b = '/lot/' + encodeURIComponent(id); if(c === a || c === b) return true;
+  try{ return decodeURIComponent(c) === a; }catch(e){ return false; } };
 function pageLot(id){
   let l = byId(id);
   // 27.10: роботу поисковика — готовая страница лота с сервера, без загрузки архива: архив ~20 МБ, робот Google
