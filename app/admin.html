@@ -713,7 +713,9 @@ async function pLeads(params){
     $('#ldl').innerHTML = rows.length ? `<div class="tw"><table><tr><th>Когда</th><th>Клиент</th><th>Лот</th><th>Статус</th><th>Комментарий</th><th></th></tr>
       ${rows.map(r=>`<tr data-id="${r.id}"><td>${dt(r.created_at)}</td>
         <td style="white-space:normal;max-width:320px"><b>${esc(r.name)}</b><br><a href="tel:${esc(r.phone.replace(/[^+\d]/g,''))}">${esc(r.phone)}</a>${r.email?`<br><a href="mailto:${esc(r.email)}">${esc(r.email)}</a>`:''}
-          ${r.msg?`<div class="muted" style="margin-top:6px;font-style:italic">«${esc(r.msg)}»</div>`:''}</td>
+          ${r.msg?`<div class="muted" style="margin-top:6px;font-style:italic">«${esc(r.msg)}»</div>`:''}
+          ${r.suspect&&r.suspect.length?`<div style="margin-top:6px;padding:6px 8px;border-radius:8px;background:rgba(220,38,38,.1);color:#b42318;font-size:12.5px"><b>⚠ Похоже, вписано программой</b> (номер мог быть вписан без ведома владельца)<br>${r.suspect.map(esc).join('; ')}</div>`:''}
+          ${r.meta&&r.meta.ua?`<div class="muted" style="margin-top:4px;font-size:12px" title="${esc(r.meta.ua)}">${r.meta.ms!=null?'форма: '+Math.round(r.meta.ms/1000)+' с, ввод: '+(r.meta.ti||0)+' · ':''}${esc(r.meta.ua.slice(0,60))}…</div>`:''}</td>
         <td>${r.lot_id?`<a href="../#/lot/${enc(r.lot_id)}" target="_blank" rel="noopener">${esc((r.lot_name||r.lot||r.lot_id).slice(0,70))}</a>`
             : r.lot?`<a href="../#/catalog?q=${enc(r.lot)}" target="_blank" rel="noopener">${esc(r.lot)}</a>`:'<span class="muted">-</span>'}
           ${r.service?`<br><span class="chip bl">${esc(r.service)}</span>`:''}

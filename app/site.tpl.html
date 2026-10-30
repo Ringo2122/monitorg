@@ -2113,6 +2113,13 @@ function mdd(btn, items, sel, onChange, o){
    opts — варианты (строки), sel — Set выбранных, ph — подпись, когда ничего не выбрано */
 /* Телефон в заявке (15.10): при фокусе сразу «+375 », дальше — только коды 29, 25, 33, 44 и номер: +375 (29) 123-45-67.
    Стёр «+375» — значит номер другой страны или особый: дальше вводится как угодно, без маски */
+/* 30.10: сведения о форме заявки для защиты от «телефонной бомбёжки» (чужие имя и номер вписывает программа): сколько форма
+   была открыта и был ли настоящий ввод (клавиатура, вставка, автозаполнение браузера). Сервер (submit_lead) помечает подозрительные */
+function formMeta(form){
+  const t0 = Date.now(); let ti = 0;
+  if(form) form.addEventListener('input', e => { if(e.isTrusted) ti++; }, true);
+  return () => ({ ms: Date.now() - t0, ti, wd: !!navigator.webdriver, page: location.pathname.slice(0, 200) });
+}
 function phoneMask(inp){
   if(!inp) return;
   const CODES = ['29','25','33','44'];
@@ -3200,6 +3207,7 @@ function pageHelp(params){
     </div></div>`;
   dd($('#h-svc'));
   phoneMask($('#h-phone'));
+  const fmeta = formMeta($('#hf'));
   $('#hf').addEventListener('submit', e=>{
     e.preventDefault();
     const name = $('#h-name').value.trim(), phone = $('#h-phone').value.replace(/\D/g,''), mail = $('#h-mail').value.trim();
@@ -3217,7 +3225,7 @@ function pageHelp(params){
     (async () => fetch(CFG.sb.url + '/rest/v1/rpc/submit_lead', { method:'POST',
       headers:Object.assign({ apikey: CFG.sb.key, 'Content-Type':'application/json' }, await uhdr()),
       body: JSON.stringify({ p_name:name, p_phone:ph, p_email:mail||null, p_lot:lotv||null, p_service:$('#h-svc').value||null,
-        p_lot_name:lotRec?lotRec.name:null, p_lot_id:lotRec?lotRec.id:null }) }))()
+        p_lot_name:lotRec?lotRec.name:null, p_lot_id:lotRec?lotRec.id:null, p_meta:fmeta() }) }))()
       .then(r => r.ok ? done() : r.json().then(j => { throw new Error(j.message || 'ошибка'); }))
       .catch(e => { btn.disabled = false; btn.textContent = 'Отправить заявку';
         $('#h-err').textContent = 'Не удалось отправить: ' + (e.message||'нет связи') + '. Попробуйте ещё раз.'; });
@@ -4738,6 +4746,7 @@ async function meOrderForm(M, params){
     </form>`;
   const sel = $('#o-lot'), oth = $('#o-oth');
   sel.onchange = () => { oth.hidden = sel.value !== '_other'; };
+  const fmeta = formMeta($('#of'));
   $('#of').addEventListener('submit', async e=>{
     e.preventDefault();
     const name = $('#o-name').value.trim(), phone = $('#o-phone').value.trim(), mail = $('#o-mail').value.trim();
@@ -4748,7 +4757,7 @@ async function meOrderForm(M, params){
     try{
       await urpc('submit_lead', { p_name:name, p_phone:phone, p_email:mail || null, p_service:$('#o-svc').value || null,
         p_lot: l ? String(l.art || '') : v === '_other' ? $('#o-num').value.trim() || null : null,
-        p_lot_name: l ? l.name : null, p_lot_id: l ? v : null, p_msg: $('#o-msg').value.trim() || null });
+        p_lot_name: l ? l.name : null, p_lot_id: l ? v : null, p_msg: $('#o-msg').value.trim() || null, p_meta: fmeta() });
       if($('#o-keep').checked) await urpc('user_update', { p:{ name, phone, email:mail } }).catch(()=>{});
       await uload();
       M.innerHTML = `<div class="panel me-p done"><div class="ok">✓</div><h2>Заявка отправлена</h2>
