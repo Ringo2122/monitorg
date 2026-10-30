@@ -78,8 +78,8 @@ jobs:
         with:
           ruby-version: '3.2'
 
-      - name: ImageMagick для фото
-        run: command -v convert || (sudo apt-get update -qq && sudo apt-get install -y -qq imagemagick)
+      - name: ImageMagick и WebP для фото
+        run: command -v cwebp || (sudo apt-get update -qq && sudo apt-get install -y -qq imagemagick webp)   # webp — большие фото лотов (30.10)
 
       - name: Туннель к konfiskat.by через hoster.by
         if: env.COLLECT == 'true' || env.RESULTS == 'true'
@@ -118,6 +118,8 @@ jobs:
         env:
           HOSTER_SSH_KEY: ${{ secrets.HOSTER_SSH_KEY }}
           HOSTER_KNOWN_HOSTS: ${{ secrets.HOSTER_KNOWN_HOSTS }}
+          ALERT_TG_TOKEN: ${{ secrets.ALERT_TG_TOKEN }}   # сигнал «хостинг заполнен на 80%»
+          ALERT_TG_CHAT: ${{ secrets.ALERT_TG_CHAT }}
         run: bash tools/hoster.sh
 
       - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5

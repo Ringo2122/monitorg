@@ -428,7 +428,13 @@ module Pages
     parts << [sh, nil]
     cr, ld_b = crumbs(parts)
     plat_p = "/ploshchadki/#{slug(l['platform'].to_s.sub(/\.by\z/, ''))}/"
-    img = l['photo'] ? %(<img class="big" src="/ph/#{h(l['photo'])}.jpg" alt="#{h(sh)} — фото 1">) : ''
+    img = if l['photo'] && l['pb']
+            %(<img class="big" src="/pb/#{h(l['pb'])}.webp" onerror="this.onerror=null;this.src='/ph/#{h(l['photo'])}.jpg'" alt="#{h(sh)} — фото 1">)
+          elsif l['photo']
+            %(<img class="big" src="/ph/#{h(l['photo'])}.jpg" alt="#{h(sh)} — фото 1">)
+          else
+            ''
+          end
     res = if st
             p = r['price'].to_f.positive? && (r['start'] || l['price']).to_f.positive? ? ((r['price'].to_f / (r['start'] || l['price']).to_f - 1) * 100).round : nil
             %(<div class="panel res"><div class="hd">Итог торгов #{dt(r['at'] || l['closed'])}</div><div class="bigprice" style="font-size:24px">#{RES[st]}#{r['price'].to_f.positive? ? " за #{nf(r['price'])} BYN" : ''}</div>) +

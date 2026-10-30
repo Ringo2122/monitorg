@@ -71,16 +71,61 @@ module Store
     File.exist?(dst) && File.size(dst) > 700
   end
 
-  def save_photo(urls, key, ua, w = W, q = Q)
+  PB = File.join(ROOT, 'tmp', 'pb')
+  BIG_W = 800
+  BIG_Q = 75
+
+  def webp(src, dst)
+    fmt = sniff(src) or return false
+    args = ["#{fmt}:#{src}[0]", '-auto-orient', '-resize', "#{BIG_W}x#{BIG_W}>", '-strip']
+    system('convert', *args, '-quality', BIG_Q.to_s, "webp:#{dst}", out: File::NULL, err: File::NULL)
+    unless File.size?(dst).to_i > 1000
+      png = dst + '.png'
+      system('convert', *args, "png:#{png}", out: File::NULL, err: File::NULL) &&
+        system('cwebp', '-quiet', '-q', BIG_Q.to_s, png, '-o', dst, out: File::NULL, err: File::NULL)
+      File.delete(png) if File.exist?(png)
+    end
+    File.delete(dst) if File.exist?(dst) && File.size(dst) <= 1000
+    File.exist?(dst)
+  end
+
+  def big_from(raw)
+    h = Digest::SHA1.file(raw).hexdigest[0, 16]
+    FileUtils.mkdir_p(PB)
+    dst = File.join(PB, "#{h}.webp")
+    File.exist?(dst) || webp(raw, dst) ? h : nil
+  end
+
+  def download(u, ua, raw)
+    curl = defined?(Src) && Src.respond_to?(:curl_for) ? Src.curl_for(u) : %w[curl -sS -L --proto =http,https --proto-redir =http,https]
+    system(*curl, '--max-filesize', '15000000', '-m', '40', '-A', ua, '-o', raw, u, out: File::NULL, err: File::NULL)
+    File.exist?(raw) && File.size(raw) > 1000 && !nophoto?(raw)
+  end
+
+  def save_big(urls, ua)
+    FileUtils.mkdir_p(PB)
+    raw = File.join(PB, "dl-#{Thread.current.object_id}.raw")
+    urls.compact.uniq.each do |u|
+      next unless u.to_s =~ %r{\Ahttps?://}i
+      ok = download(u, ua, raw)
+      h = ok && big_from(raw)
+      File.delete(raw) if File.exist?(raw)
+      return h if h
+    end
+    nil
+  ensure
+    File.delete(raw) if raw && File.exist?(raw)
+  end
+
+  def save_photo(urls, key, ua, w = W, q = Q, big: nil)
     dst = ph_path(key)
     return true if File.exist?(dst)
     raw = dst + '.raw'
     urls.compact.uniq.each do |u|
       next unless u.to_s =~ %r{\Ahttps?://}i
-      curl = defined?(Src) && Src.respond_to?(:curl_for) ? Src.curl_for(u) : %w[curl -sS -L --proto =http,https --proto-redir =http,https]
-      system(*curl, '--max-filesize', '15000000', '-m', '40', '-A', ua, '-o', raw, u, out: File::NULL, err: File::NULL)
-      next unless File.exist?(raw) && File.size(raw) > 1000 && !nophoto?(raw)
+      next unless download(u, ua, raw)
       ok = shrink(raw, dst, w, q)
+      big['pb'] = big_from(raw) if ok && big
       File.delete(raw) if File.exist?(raw)
       File.delete(dst) if ok && nophoto?(dst)
       return true if ok && File.exist?(dst)

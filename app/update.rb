@@ -8,6 +8,7 @@ require_relative 'results'
 require_relative 'backfill'
 require_relative 'geo'
 require_relative 'pics'
+require_relative 'bigph'
 require_relative 'mgcn'
 require_relative 'bav'
 require 'fileutils'
@@ -180,6 +181,7 @@ terms_left = TERMS_CAP
 PICS_DAYS = 2
 PICS_RUN = 120
 pics_left = Hash.new(PICS_RUN)
+BIG_SECS = %w[nedvizhimost avto gruz spec].freeze
 FULL_RUN = 100
 full_left = Hash.new(FULL_RUN)
 new_left = NEW_CAP.dup
@@ -255,7 +257,9 @@ end
             if !old['photo'] && (old['ph_try'].to_i < 3 || now - old['ph_at'].to_i > 86_400) &&
                !File.exist?(Store.ph_path(c['key'])) && !%w[minskestate.by mgcn.by].include?(c['platform'])
               d3 = fetch_detail(c)
-              ok = Store.save_photo([d3 && (d3['photo_url'] || (d3['photos'] || [])[0]), c['thumb']], c['key'], Src::UA)
+              bg = BIG_SECS.include?(old['section']) && !old['pb'] ? {} : nil
+              ok = Store.save_photo([d3 && (d3['photo_url'] || (d3['photos'] || [])[0]), c['thumb']], c['key'], Src::UA, big: bg)
+              upd['pb'] = bg['pb'] if bg && bg['pb']
               upd['photo'] = ok
               upd['ph_try'] = old['ph_try'].to_i + 1 unless ok
               upd['ph_at'] = now
@@ -374,7 +378,9 @@ end
             end
             rec['tk'] = d['tk'] if d['tk']
             Store.save_details(c['key'], trim(d['details'] || []))
-            rec['photo'] = Store.save_photo([d['photo_url'], c['thumb']], c['key'], Src::UA) unless %w[minskestate.by mgcn.by].include?(plat)
+            bg = BIG_SECS.include?(rec['section']) ? {} : nil
+            rec['photo'] = Store.save_photo([d['photo_url'], c['thumb']], c['key'], Src::UA, big: bg) unless %w[minskestate.by mgcn.by].include?(plat)
+            rec['pb'] = bg['pb'] if bg && bg['pb']
             mx.synchronize do
               db[c['key']] = rec
               stat['новых'] += 1
@@ -588,6 +594,7 @@ elsif !RESULTS_ONLY
   geo_t.join
 
   fill_pics(db, stat)
+  fill_big(db, stat, now)
 end
 
 cut = now - RETAIN_DAYS * 86_400

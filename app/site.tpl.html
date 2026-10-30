@@ -1573,7 +1573,10 @@ const pslug = p => 'p-' + String(p||'').split('.')[0].replace(/[^a-z0-9]/g,'');
 const NOPH = ['nedvizhimost','avto','gruz','spec','oborud','arenda'];
 const noph = (l, cls) => `<img${cls?` class="${cls}"`:''} src="/noph/${NOPH.includes(l.section)?l.section:'other'}.svg" alt="Нет фото" loading="lazy">`;
 /* фото: наша копия; у minskestate — ссылкой на площадку (phx: её robots.txt закрывает фото для роботов); нет — заглушка */
+// большое фото страницы лота (30.10): /pb/<имя>.webp (800 px, hoster.by); не открылось или браузер без WebP — наша маленькая копия
+const pbOnErr = l => ` onerror="this.onerror=null;this.src='/ph/${encodeURIComponent(l.photo)}.jpg'"`;
 const pic = (l, cls) => !l.photo && !l.phx ? noph(l, cls)
+  : cls==='big' && l.pb && l.photo ? `<img class="big" src="/pb/${l.pb}.webp"${pbOnErr(l)} decoding="async" alt="${esc(l.name)}">`
   : `<img${cls?` class="${cls}"`:''} src="${l.photo ? `/ph/${encodeURIComponent(l.photo)}.jpg` : esc(l.phx)}"${cls==='big'?'':' loading="lazy"'} decoding="async" alt="${esc(l.name)}">`;
 
 const DET = {}, DETQ = {};

@@ -28,7 +28,7 @@ TMP  = File.join(Store::ROOT, 'tmp')
 PACKS = 1000
 ARCH_NEW = 45
 KEEP = %w[dn yr id art name price req_to torg url location region city debtor area_num platform section off
-          photo pk market prices status closed why first_seen alt pin result phx land sub chance brand u].freeze
+          photo pk market prices status closed why first_seen alt pin result phx land sub chance brand u pb].freeze
 SECS = %w[nedvizhimost avto gruz spec oborud arenda].freeze
 
 FIO = /[А-ЯЁ][а-яё]+(?:-[А-ЯЁ][а-яё]+)?\s+(?:[А-ЯЁ][а-яё]+\s+[А-ЯЁ][а-яё]+(?:вич|вна|ична|ич)|[А-ЯЁ]\.\s?[А-ЯЁ]\.)/
