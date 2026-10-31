@@ -1,0 +1,18 @@
+name: Прямой доступ к площадкам (разовая проверка)
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Прямой доступ без хостинга
+        run: |
+          UA='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/140.0 Safari/537.36'
+          for u in https://konfiskat.by/ https://torgikonfiskat.by/ https://expert-torgi.by/ https://auction24.by/ https://belauction.by/ https://gostorg.by/; do
+            for i in 1 2; do
+              r=$(curl -s -A "$UA" -o /tmp/b -w '%{http_code} %{size_download} %{time_total}' --max-time 25 "$u" 2>&1 || true)
+              echo "RES $u попытка $i: $r"
+            done
+          done
