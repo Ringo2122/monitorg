@@ -22,9 +22,10 @@ jobs:
           UA='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/140.0 Safari/537.36'
           bash tools/kf_tunnel.sh > /dev/null 2>&1 || true
           K=$PWD/tools/kf_curl.sh
-          for u in "https://auction24.by/catalog/nedvizhimost/accept?page=1&limit=100" "https://auction24.by/auction" "https://belauction.by/active/" "https://belauction.by/"; do
-            for i in 1 2 3; do echo "RES прямо $u: $(curl -s -A "$UA" -o /tmp/b -w '%{http_code} %{size_download} %{time_total}' --max-time 25 "$u" || true)"; sleep 2; done
+          for u in "https://auction24.by/catalog/nedvizhimost/accept?page=1&limit=100" "https://belauction.by/active-auctions/"; do
+            curl -sL -A "$UA" --max-time 25 "$u" -o /tmp/d; echo "RES прямо $u: $(wc -c < /tmp/d) байт, карточек: $(grep -c 'lot\|card' /tmp/d)"
+            bash $K -sL -A "$UA" --max-time 25 "$u" > /tmp/h 2>/dev/null; echo "RES хостинг $u: $(wc -c < /tmp/h) байт, карточек: $(grep -c 'lot\|card' /tmp/h)"
           done
           for u in https://gostorg.by/ https://konfiskat.by/ https://expert-torgi.by/ https://auction24.by/ https://belauction.by/; do
-            echo "RES хостинг $u: $(bash $K -s -A "$UA" -o /dev/null -w '%{http_code} %{size_download} %{time_total}' --max-time 25 "$u" 2>&1 | tail -c 120)"
+            echo "RES хостинг $u: $(bash $K -s -A "$UA" --output /dev/null -w '%{http_code} %{size_download} %{time_total}' --max-time 25 "$u" 2>&1 | tail -c 120)"
           done
