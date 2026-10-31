@@ -5,14 +5,26 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
-      - name: Прямой доступ без хостинга
+      - name: Код робота
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: Ringo2122/monitorg-src
+          ssh-key: ${{ secrets.SRC_KEY }}
+          sparse-checkout: tools
+      - name: Каталоги напрямую и через хостинг
+        env:
+          HOSTER_SSH_KEY: ${{ secrets.HOSTER_SSH_KEY }}
+          HOSTER_KNOWN_HOSTS: ${{ secrets.HOSTER_KNOWN_HOSTS }}
+          GITHUB_ENV: /tmp/genv
         run: |
           UA='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/140.0 Safari/537.36'
-          for u in https://konfiskat.by/ https://torgikonfiskat.by/ https://expert-torgi.by/ https://auction24.by/ https://belauction.by/ https://gostorg.by/; do
-            for i in 1 2; do
-              r=$(curl -s -A "$UA" -o /tmp/b -w '%{http_code} %{size_download} %{time_total}' --max-time 25 "$u" 2>&1 || true)
-              echo "RES $u попытка $i: $r"
-            done
+          bash tools/kf_tunnel.sh > /dev/null 2>&1 || true
+          K=$PWD/tools/kf_curl.sh
+          for u in "https://auction24.by/catalog/nedvizhimost/accept?page=1&limit=100" "https://auction24.by/auction" "https://belauction.by/active/" "https://belauction.by/"; do
+            for i in 1 2 3; do echo "RES прямо $u: $(curl -s -A "$UA" -o /tmp/b -w '%{http_code} %{size_download} %{time_total}' --max-time 25 "$u" || true)"; sleep 2; done
+          done
+          for u in https://gostorg.by/ https://konfiskat.by/ https://expert-torgi.by/ https://auction24.by/ https://belauction.by/; do
+            echo "RES хостинг $u: $(bash $K -s -A "$UA" -o /dev/null -w '%{http_code} %{size_download} %{time_total}' --max-time 25 "$u" 2>&1 | tail -c 120)"
           done
