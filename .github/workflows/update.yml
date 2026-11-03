@@ -2,13 +2,17 @@ name: Обновление сайта
 
 on:
   schedule:
-    - cron: '3-59/10 * * * *'   # каждые 10 минут, не в ровные минуты: на :00 у GitHub очередь, запуски пропадают
+    - cron: '33 * * * *'   # про запас, раз в час (03.11): основной запуск — из базы; GitHub расписание часто пропускает
   workflow_dispatch:
     inputs:
       collect:
         description: 'Обойти площадки (если снять — только пересобрать сайт)'
         type: boolean
         default: true
+      auto:
+        description: 'Как по расписанию: робот сам решает, пора ли (так будит база)'
+        type: boolean
+        default: false
   push:
     branches: [main]
     paths: ['app/**', '.github/workflows/**']   # правка кода — пересобрать сайт без обхода
@@ -52,6 +56,7 @@ jobs:
           TZ: Europe/Minsk
           EVENT: ${{ github.event_name }}
           INPUT_COLLECT: ${{ inputs.collect }}
+          INPUT_AUTO: ${{ inputs.auto }}
           SB_URL: ${{ secrets.SB_URL }}
           SB_KEY: ${{ secrets.SB_KEY }}
           SB_TOKEN: ${{ secrets.SB_TOKEN }}
