@@ -1,0 +1,121 @@
+name: Архив площадок за год
+
+on:
+  schedule:
+    - cron: '30 20 * * *'    # 23:30 по Минску
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: 'Сколько минут собирать архив'
+        type: number
+        default: 270
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  year:
+    concurrency:
+      group: site
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    env:
+      TZ: Europe/Minsk
+      SEO_LIVE: '1'
+      YEAR_ARCH: '1'
+      BACK_MIN: ${{ inputs.minutes || 270 }}
+      RUN_KIND: year
+      SB_URL: ${{ secrets.SB_URL }}
+      SB_KEY: ${{ secrets.SB_KEY }}
+      SB_TOKEN: ${{ secrets.SB_TOKEN }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: main   # свежая память (см. update.yml)
+
+      - name: Код робота
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: Ringo2122/monitorg-src
+          ssh-key: ${{ secrets.SRC_KEY }}
+          path: _src
+          sparse-checkout: |
+            app
+            tools
+      - name: Код робота на место
+        run: cp -R _src/app _src/tools . && rm -rf _src
+
+      - uses: ruby/setup-ruby@14594264cd68ce8a2345dd349bc3d138a4ef85c8 # v1
+        with:
+          ruby-version: '3.2'
+
+      - name: ImageMagick для фото
+        run: command -v convert || (sudo apt-get update -qq && sudo apt-get install -y -qq imagemagick)
+
+      - name: Туннель к konfiskat.by через hoster.by
+        env:
+          HOSTER_SSH_KEY: ${{ secrets.HOSTER_SSH_KEY }}
+          HOSTER_KNOWN_HOSTS: ${{ secrets.HOSTER_KNOWN_HOSTS }}
+        run: bash tools/kf_tunnel.sh
+
+      - id: y
+        name: Архив площадок за год
+        shell: bash
+        run: |
+          mkdir -p tmp
+          echo "RUN_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
+          ruby app/update.rb 2>&1 | tee tmp/update.log
+          exit ${PIPESTATUS[0]}
+
+      - name: Сохранить память
+        if: steps.y.outputs.work != 'false'
+        run: |
+          git config user.name "monitorg-bot"
+          git config user.email "monitorg-bot@users.noreply.github.com"
+          git add -A data
+          git commit -q -m "данные: архив площадок за год, $(date '+%d.%m.%Y %H:%M')" || echo "без изменений"
+          git push || (git pull --rebase --autostash -q && git push)
+
+      - name: Сборка сайта
+        if: steps.y.outputs.work != 'false'
+        run: ruby app/build.rb
+
+      - name: Выкладка на hoster.by и копия для GitHub Pages
+        if: steps.y.outputs.work != 'false'
+        env:
+          HOSTER_SSH_KEY: ${{ secrets.HOSTER_SSH_KEY }}
+          HOSTER_KNOWN_HOSTS: ${{ secrets.HOSTER_KNOWN_HOSTS }}
+        run: bash tools/hoster.sh
+
+      - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
+        if: steps.y.outputs.work != 'false'
+
+      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
+        if: steps.y.outputs.work != 'false'
+        with:
+          path: _pages
+
+      - id: deploy
+        if: steps.y.outputs.work != 'false'
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
+
+      - name: Отчёт и копия каталога — в админку
+        if: always() && steps.y.outputs.work != 'false'
+        continue-on-error: true
+        env:
+          JOB_OK: ${{ job.status == 'success' }}
+        run: ruby app/sync.rb
+
+      - name: Сигнал о сбое — в Telegram
+        if: failure()
+        continue-on-error: true
+        env:
+          ALERT_TG_TOKEN: ${{ secrets.ALERT_TG_TOKEN }}
+          ALERT_TG_CHAT: ${{ secrets.ALERT_TG_CHAT }}
+        run: ruby app/alert.rb --event "прогон «архив площадок за год» упал"

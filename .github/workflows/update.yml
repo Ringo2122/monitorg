@@ -1,0 +1,171 @@
+name: Обновление сайта
+
+on:
+  schedule:
+    - cron: '3-59/10 * * * *'   # каждые 10 минут, не в ровные минуты: на :00 у GitHub очередь, запуски пропадают
+  workflow_dispatch:
+    inputs:
+      collect:
+        description: 'Обойти площадки (если снять — только пересобрать сайт)'
+        type: boolean
+        default: true
+  push:
+    branches: [main]
+    paths: ['app/**', '.github/workflows/**']   # правка кода — пересобрать сайт без обхода
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      collect: ${{ steps.g.outputs.collect }}
+      results: ${{ steps.g.outputs.results }}
+      build: ${{ steps.g.outputs.build }}
+      run_id: ${{ steps.g.outputs.run_id }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          sparse-checkout: app     # память робота с фото не нужна — только скрипты
+
+      - name: Код робота
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: Ringo2122/monitorg-src
+          ssh-key: ${{ secrets.SRC_KEY }}
+          path: _src
+          sparse-checkout: |
+            app
+            tools
+      - name: Код робота на место
+        run: cp -R _src/app _src/tools . && rm -rf _src
+
+      - uses: ruby/setup-ruby@14594264cd68ce8a2345dd349bc3d138a4ef85c8 # v1
+        with:
+          ruby-version: '3.2'
+
+      - id: g
+        name: Пора ли работать
+        env:
+          TZ: Europe/Minsk
+          EVENT: ${{ github.event_name }}
+          INPUT_COLLECT: ${{ inputs.collect }}
+          SB_URL: ${{ secrets.SB_URL }}
+          SB_KEY: ${{ secrets.SB_KEY }}
+          SB_TOKEN: ${{ secrets.SB_TOKEN }}
+        run: ruby app/gate.rb
+
+  update:
+    needs: gate
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+    if: needs.gate.outputs.build == 'true'
+    concurrency:
+      group: site
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 80
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    env:
+      TZ: Europe/Minsk
+      SEO_LIVE: '1'   # 23.10: сайт открыт поисковикам (архив — пока только лоты с итогом, SEO_ARCH)
+      COLLECT: ${{ needs.gate.outputs.collect }}
+      RESULTS: ${{ needs.gate.outputs.results }}
+      RUN_ID: ${{ needs.gate.outputs.run_id }}
+      SB_URL: ${{ secrets.SB_URL }}
+      SB_KEY: ${{ secrets.SB_KEY }}
+      SB_TOKEN: ${{ secrets.SB_TOKEN }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: main
+
+      - name: Код робота
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: Ringo2122/monitorg-src
+          ssh-key: ${{ secrets.SRC_KEY }}
+          path: _src
+          sparse-checkout: |
+            app
+            tools
+      - name: Код робота на место
+        run: cp -R _src/app _src/tools . && rm -rf _src
+
+      - uses: ruby/setup-ruby@14594264cd68ce8a2345dd349bc3d138a4ef85c8 # v1
+        with:
+          ruby-version: '3.2'
+
+      - name: ImageMagick и WebP для фото
+        run: command -v cwebp || (sudo apt-get update -qq && sudo apt-get install -y -qq imagemagick webp)   # webp — большие фото лотов (30.10)
+
+      - name: Туннель к konfiskat.by через hoster.by
+        if: env.COLLECT == 'true' || env.RESULTS == 'true'
+        env:
+          HOSTER_SSH_KEY: ${{ secrets.HOSTER_SSH_KEY }}
+          HOSTER_KNOWN_HOSTS: ${{ secrets.HOSTER_KNOWN_HOSTS }}
+        run: bash tools/kf_tunnel.sh
+
+      - name: Обход площадок
+        if: env.COLLECT == 'true' || env.RESULTS == 'true'
+        shell: bash
+        run: |
+          mkdir -p tmp
+          if [ "$COLLECT" != 'true' ]; then export RESULTS_ONLY=1; fi
+          ruby app/update.rb 2>&1 | tee tmp/update.log
+          exit ${PIPESTATUS[0]}
+
+      - name: Рыночный ориентир (Kufar)
+        if: env.COLLECT == 'true'
+        continue-on-error: true
+        run: ruby app/market.rb && ruby app/market_realty.rb
+
+      - name: Сохранить память
+        if: env.COLLECT == 'true' || env.RESULTS == 'true'
+        run: |
+          git config user.name "monitorg-bot"
+          git config user.email "monitorg-bot@users.noreply.github.com"
+          git add -A data
+          git commit -q -m "данные: $(date '+%d.%m.%Y %H:%M')" || echo "без изменений"
+          git push || (git pull --rebase --autostash -q && git push)
+
+      - name: Сборка сайта
+        run: ruby app/build.rb
+
+      - name: Выкладка на hoster.by и копия для GitHub Pages
+        env:
+          HOSTER_SSH_KEY: ${{ secrets.HOSTER_SSH_KEY }}
+          HOSTER_KNOWN_HOSTS: ${{ secrets.HOSTER_KNOWN_HOSTS }}
+          ALERT_TG_TOKEN: ${{ secrets.ALERT_TG_TOKEN }}   # сигнал «хостинг заполнен на 80%»
+          ALERT_TG_CHAT: ${{ secrets.ALERT_TG_CHAT }}
+        run: bash tools/hoster.sh
+
+      - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
+
+      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
+        with:
+          path: _pages
+
+      - id: deploy
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
+
+      - name: Отчёт и копия каталога — в админку
+        if: always()
+        continue-on-error: true
+        env:
+          JOB_OK: ${{ job.status == 'success' }}
+        run: ruby app/sync.rb
+
+      - name: Сигнал о сбое — в Telegram
+        if: failure()
+        continue-on-error: true
+        env:
+          ALERT_TG_TOKEN: ${{ secrets.ALERT_TG_TOKEN }}
+          ALERT_TG_CHAT: ${{ secrets.ALERT_TG_CHAT }}
+        run: ruby app/alert.rb --event "прогон робота упал (${{ needs.gate.outputs.collect == 'true' && 'обход площадок' || needs.gate.outputs.results == 'true' && 'проверка итогов' || 'сборка сайта' }})"
