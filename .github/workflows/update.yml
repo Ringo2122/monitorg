@@ -158,7 +158,16 @@ jobs:
           path: _pages
 
       - id: deploy
+        continue-on-error: true
         uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
+
+      - name: Сигнал — резервная копия не выложилась
+        if: steps.deploy.outcome == 'failure'
+        continue-on-error: true
+        env:
+          ALERT_TG_TOKEN: ${{ secrets.ALERT_TG_TOKEN }}
+          ALERT_TG_CHAT: ${{ secrets.ALERT_TG_CHAT }}
+        run: ruby app/alert.rb --event "резервная копия сайта на GitHub Pages не выложилась (основной сайт на hoster.by обновлён, это не авария)" --every 48 --key pages-backup
 
       - name: Отчёт и копия каталога — в админку
         if: always()
